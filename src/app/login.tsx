@@ -1,30 +1,37 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, TextInput, Pressable, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
-import { useRouter } from 'expo-router';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { DymsLogo } from '@/components/DymsLogo';
-import { ShadowCard } from '@/components/ShadowCard';
-import { useApp } from '@/context/AppContext';
-import { useTheme } from '@/hooks/use-theme';
+import React, { useState } from "react";
+import {
+  View,
+  StyleSheet,
+  TextInput,
+  Pressable,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+} from "react-native";
+import { useRouter } from "expo-router";
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
+import { DymsLogo } from "@/components/DymsLogo";
+import { ShadowCard } from "@/components/ShadowCard";
+import { useApp } from "@/context/AppContext";
+import { useTheme } from "@/hooks/use-theme";
 
 export default function LoginScreen() {
   const { login } = useApp();
   const router = useRouter();
   const theme = useTheme();
-  
-  const [email, setEmail] = useState('deodux@gmail.com');
-  const [password, setPassword] = useState('123456');
+
+  const [email, setEmail] = useState("deodux@gmail.com");
+  const [password, setPassword] = useState("123456");
   const [loading, setLoading] = useState(false);
-  const [roleMode, setRoleMode] = useState<'student' | 'teacher'>('student');
+  const [roleMode, setRoleMode] = useState<"student" | "teacher">("student");
 
   const handleLogin = async () => {
     if (!email || !password) return;
     setLoading(true);
     try {
-      const success = await login(email);
+      const success = await login(email, password);
       if (success) {
-        // Redirection handled by LayoutGuard
       }
     } catch (err) {
       console.error(err);
@@ -36,10 +43,13 @@ export default function LoginScreen() {
   return (
     <ThemedView style={styles.container}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
           <View style={styles.header}>
             <DymsLogo size={40} showText />
           </View>
@@ -58,15 +68,24 @@ export default function LoginScreen() {
             <Pressable
               style={[
                 styles.roleTab,
-                roleMode === 'student' && [styles.activeTab, { backgroundColor: theme.card }],
+                roleMode === "student" && [
+                  styles.activeTab,
+                  { backgroundColor: theme.card },
+                ],
               ]}
               onPress={() => {
-                setRoleMode('student');
-                setEmail('deodux@gmail.com');
+                setRoleMode("student");
+                setEmail("deodux@gmail.com");
               }}
             >
               <ThemedText
-                style={[styles.roleTabText, roleMode === 'student' && { color: theme.primary, fontWeight: '700' }]}
+                style={[
+                  styles.roleTabText,
+                  roleMode === "student" && {
+                    color: theme.primary,
+                    fontWeight: "700",
+                  },
+                ]}
               >
                 학생
               </ThemedText>
@@ -74,15 +93,24 @@ export default function LoginScreen() {
             <Pressable
               style={[
                 styles.roleTab,
-                roleMode === 'teacher' && [styles.activeTab, { backgroundColor: theme.card }],
+                roleMode === "teacher" && [
+                  styles.activeTab,
+                  { backgroundColor: theme.card },
+                ],
               ]}
               onPress={() => {
-                setRoleMode('teacher');
-                setEmail('teacher.lee@dy.hs.kr');
+                setRoleMode("teacher");
+                setEmail("teacher.lee@dy.hs.kr");
               }}
             >
               <ThemedText
-                style={[styles.roleTabText, roleMode === 'teacher' && { color: theme.primary, fontWeight: '700' }]}
+                style={[
+                  styles.roleTabText,
+                  roleMode === "teacher" && {
+                    color: theme.primary,
+                    fontWeight: "700",
+                  },
+                ]}
               >
                 교직원
               </ThemedText>
@@ -95,7 +123,14 @@ export default function LoginScreen() {
                 이메일
               </ThemedText>
               <TextInput
-                style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border }]}
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: theme.background,
+                    color: theme.text,
+                    borderColor: theme.border,
+                  },
+                ]}
                 placeholder="이메일을 입력하세요"
                 placeholderTextColor={theme.textSecondary}
                 value={email}
@@ -110,7 +145,14 @@ export default function LoginScreen() {
                 비밀번호
               </ThemedText>
               <TextInput
-                style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border }]}
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: theme.background,
+                    color: theme.text,
+                    borderColor: theme.border,
+                  },
+                ]}
                 placeholder="비밀번호를 입력하세요"
                 placeholderTextColor={theme.textSecondary}
                 value={password}
@@ -121,13 +163,17 @@ export default function LoginScreen() {
             </View>
 
             <View style={styles.linksRow}>
-              <Pressable onPress={() => router.push('/signup')}>
+              <Pressable onPress={() => router.push("/signup")}>
                 <ThemedText style={styles.linkText} type="small">
                   회원가입
                 </ThemedText>
               </Pressable>
               <Pressable>
-                <ThemedText style={styles.linkText} type="small" themeColor="textSecondary">
+                <ThemedText
+                  style={styles.linkText}
+                  type="small"
+                  themeColor="textSecondary"
+                >
                   아이디 · 비밀번호 찾기
                 </ThemedText>
               </Pressable>
@@ -144,7 +190,7 @@ export default function LoginScreen() {
             disabled={loading}
           >
             <ThemedText style={styles.loginButtonText} type="default">
-              {loading ? '로그인 중...' : '로그인'}
+              {loading ? "로그인 중..." : "로그인"}
             </ThemedText>
           </Pressable>
         </ScrollView>
@@ -159,21 +205,21 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
     paddingHorizontal: 24,
     paddingVertical: 40,
   },
   header: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 32,
   },
   titleSection: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 24,
   },
   title: {
     fontSize: 32,
-    fontWeight: '800',
+    fontWeight: "800",
     letterSpacing: -1,
   },
   subtitle: {
@@ -181,7 +227,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   roleTabs: {
-    flexDirection: 'row',
+    flexDirection: "row",
     borderRadius: 12,
     padding: 3,
     marginBottom: 20,
@@ -189,13 +235,13 @@ const styles = StyleSheet.create({
   roleTab: {
     flex: 1,
     paddingVertical: 10,
-    alignItems: 'center',
+    alignItems: "center",
     borderRadius: 9,
   },
   activeTab: {
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
+        shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
         shadowRadius: 3,
@@ -204,7 +250,7 @@ const styles = StyleSheet.create({
         elevation: 2,
       },
       web: {
-        shadowColor: '#000',
+        shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.05,
         shadowRadius: 4,
@@ -213,7 +259,7 @@ const styles = StyleSheet.create({
   },
   roleTabText: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   card: {
     marginBottom: 24,
@@ -233,8 +279,8 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   linksRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     marginTop: 8,
   },
   linkText: {
@@ -243,11 +289,11 @@ const styles = StyleSheet.create({
   loginButton: {
     height: 52,
     borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
+        shadowColor: "#000",
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.15,
         shadowRadius: 8,
@@ -256,7 +302,7 @@ const styles = StyleSheet.create({
         elevation: 4,
       },
       web: {
-        shadowColor: '#000',
+        shadowColor: "#000",
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.1,
         shadowRadius: 8,
@@ -264,8 +310,8 @@ const styles = StyleSheet.create({
     }),
   },
   loginButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
+    color: "#FFFFFF",
+    fontWeight: "700",
     fontSize: 16,
   },
   pressed: {

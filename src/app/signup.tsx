@@ -1,13 +1,21 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, TextInput, Pressable, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
-import { useRouter } from 'expo-router';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { DymsLogo } from '@/components/DymsLogo';
-import { ShadowCard } from '@/components/ShadowCard';
-import { useApp } from '@/context/AppContext';
-import { useTheme } from '@/hooks/use-theme';
-import { SymbolView } from 'expo-symbols';
+import React, { useState } from "react";
+import {
+  View,
+  StyleSheet,
+  TextInput,
+  Pressable,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+} from "react-native";
+import { useRouter } from "expo-router";
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
+import { DymsLogo } from "@/components/DymsLogo";
+import { ShadowCard } from "@/components/ShadowCard";
+import { useApp } from "@/context/AppContext";
+import { useTheme } from "@/hooks/use-theme";
+import { SymbolView } from "expo-symbols";
 
 export default function SignUpScreen() {
   const { registerUser } = useApp();
@@ -18,12 +26,12 @@ export default function SignUpScreen() {
   const [agreed, setAgreed] = useState(false);
 
   // Form states
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [role, setRole] = useState<'student' | 'teacher'>('student');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [role, setRole] = useState<"student" | "teacher">("student");
 
   const handleNextStep = () => {
     if (step === 1) {
@@ -32,7 +40,7 @@ export default function SignUpScreen() {
     } else if (step === 2) {
       if (!email || !password || !confirmPassword || !name || !phone) return;
       if (password !== confirmPassword) {
-        alert('비밀번호가 일치하지 않습니다.');
+        alert("비밀번호가 일치하지 않습니다.");
         return;
       }
       setStep(3);
@@ -40,22 +48,29 @@ export default function SignUpScreen() {
   };
 
   const handleFinish = async () => {
-    await registerUser({
-      name,
+    const ok = await registerUser({
       email,
+      password,
+      name,
       phone,
       role,
     });
-    // Redirect is automatically processed by LayoutGuard
+
+    if (ok) {
+      router.replace("/(tabs)");
+    }
   };
 
   return (
     <ThemedView style={styles.container}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
           <View style={styles.header}>
             <DymsLogo size={36} showText />
           </View>
@@ -65,17 +80,27 @@ export default function SignUpScreen() {
               <ThemedText style={styles.title} type="subtitle">
                 Register
               </ThemedText>
-              
+
               <ShadowCard style={styles.card} padding={16}>
                 <ThemedText style={styles.termsTitle} type="smallBold">
                   서비스 이용약관 동의
                 </ThemedText>
                 <ScrollView style={styles.termsBox}>
-                  <ThemedText style={styles.termsText} type="small" themeColor="textSecondary">
-                    본 약관은 덕영고등학교 교내 메신저 서비스(DYMS)의 이용 조건 및 절차에 관한 사항을 규정합니다.{"\n\n"}
-                    1. 이용자는 교내 학생 및 교직원에 한하며, 학교 전자 우편을 통한 인증이 요구될 수 있습니다.{"\n"}
-                    2. 메신저 내에서 타인을 비방하거나 유해한 정보를 유포하는 경우, 교내 규정에 따라 서비스 이용이 정지될 수 있습니다.{"\n"}
-                    3. 개인정보 보호법에 의거하여 가입 시 입력된 이메일 및 전화번호는 서비스 운영 이외의 용도로 사용되지 않으며 암호화되어 안전하게 관리됩니다.
+                  <ThemedText
+                    style={styles.termsText}
+                    type="small"
+                    themeColor="textSecondary"
+                  >
+                    본 약관은 덕영고등학교 교내 메신저 서비스(DYMS)의 이용 조건
+                    및 절차에 관한 사항을 규정합니다.{"\n\n"}
+                    1. 이용자는 교내 학생 및 교직원에 한하며, 학교 전자 우편을
+                    통한 인증이 요구될 수 있습니다.{"\n"}
+                    2. 메신저 내에서 타인을 비방하거나 유해한 정보를 유포하는
+                    경우, 교내 규정에 따라 서비스 이용이 정지될 수 있습니다.
+                    {"\n"}
+                    3. 개인정보 보호법에 의거하여 가입 시 입력된 이메일 및
+                    전화번호는 서비스 운영 이외의 용도로 사용되지 않으며
+                    암호화되어 안전하게 관리됩니다.
                   </ThemedText>
                 </ScrollView>
 
@@ -92,7 +117,11 @@ export default function SignUpScreen() {
                   >
                     {agreed && (
                       <SymbolView
-                        name={{ ios: 'checkmark', android: 'check', web: 'check' }}
+                        name={{
+                          ios: "checkmark",
+                          android: "check",
+                          web: "check",
+                        }}
                         tintColor="#FFFFFF"
                         size={12}
                       />
@@ -105,7 +134,9 @@ export default function SignUpScreen() {
               <Pressable
                 style={({ pressed }) => [
                   styles.button,
-                  agreed ? { backgroundColor: theme.primary } : styles.buttonDisabled,
+                  agreed
+                    ? { backgroundColor: theme.primary }
+                    : styles.buttonDisabled,
                   pressed && agreed && styles.pressed,
                 ]}
                 onPress={handleNextStep}
@@ -125,16 +156,27 @@ export default function SignUpScreen() {
               </ThemedText>
 
               {/* Role selector tabs */}
-              <View style={[styles.roleTabs, { backgroundColor: theme.border }]}>
+              <View
+                style={[styles.roleTabs, { backgroundColor: theme.border }]}
+              >
                 <Pressable
                   style={[
                     styles.roleTab,
-                    role === 'student' && [styles.activeTab, { backgroundColor: theme.card }],
+                    role === "student" && [
+                      styles.activeTab,
+                      { backgroundColor: theme.card },
+                    ],
                   ]}
-                  onPress={() => setRole('student')}
+                  onPress={() => setRole("student")}
                 >
                   <ThemedText
-                    style={[styles.roleTabText, role === 'student' && { color: theme.primary, fontWeight: '700' }]}
+                    style={[
+                      styles.roleTabText,
+                      role === "student" && {
+                        color: theme.primary,
+                        fontWeight: "700",
+                      },
+                    ]}
                   >
                     학생
                   </ThemedText>
@@ -142,12 +184,21 @@ export default function SignUpScreen() {
                 <Pressable
                   style={[
                     styles.roleTab,
-                    role === 'teacher' && [styles.activeTab, { backgroundColor: theme.card }],
+                    role === "teacher" && [
+                      styles.activeTab,
+                      { backgroundColor: theme.card },
+                    ],
                   ]}
-                  onPress={() => setRole('teacher')}
+                  onPress={() => setRole("teacher")}
                 >
                   <ThemedText
-                    style={[styles.roleTabText, role === 'teacher' && { color: theme.primary, fontWeight: '700' }]}
+                    style={[
+                      styles.roleTabText,
+                      role === "teacher" && {
+                        color: theme.primary,
+                        fontWeight: "700",
+                      },
+                    ]}
                   >
                     교직원
                   </ThemedText>
@@ -160,7 +211,14 @@ export default function SignUpScreen() {
                     이메일
                   </ThemedText>
                   <TextInput
-                    style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border }]}
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: theme.background,
+                        color: theme.text,
+                        borderColor: theme.border,
+                      },
+                    ]}
                     placeholder="example@gmail.com"
                     placeholderTextColor={theme.textSecondary}
                     value={email}
@@ -175,7 +233,14 @@ export default function SignUpScreen() {
                     패스워드
                   </ThemedText>
                   <TextInput
-                    style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border }]}
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: theme.background,
+                        color: theme.text,
+                        borderColor: theme.border,
+                      },
+                    ]}
                     placeholder="비밀번호를 입력하세요"
                     placeholderTextColor={theme.textSecondary}
                     value={password}
@@ -189,7 +254,14 @@ export default function SignUpScreen() {
                     패스워드 확인
                   </ThemedText>
                   <TextInput
-                    style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border }]}
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: theme.background,
+                        color: theme.text,
+                        borderColor: theme.border,
+                      },
+                    ]}
                     placeholder="비밀번호를 한번 더 입력하세요"
                     placeholderTextColor={theme.textSecondary}
                     value={confirmPassword}
@@ -203,7 +275,14 @@ export default function SignUpScreen() {
                     이름
                   </ThemedText>
                   <TextInput
-                    style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border }]}
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: theme.background,
+                        color: theme.text,
+                        borderColor: theme.border,
+                      },
+                    ]}
                     placeholder="실명을 입력하세요"
                     placeholderTextColor={theme.textSecondary}
                     value={name}
@@ -216,7 +295,14 @@ export default function SignUpScreen() {
                     전화번호
                   </ThemedText>
                   <TextInput
-                    style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border }]}
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: theme.background,
+                        color: theme.text,
+                        borderColor: theme.border,
+                      },
+                    ]}
                     placeholder="010-0000-0000"
                     placeholderTextColor={theme.textSecondary}
                     value={phone}
@@ -243,10 +329,22 @@ export default function SignUpScreen() {
 
           {step === 3 && (
             <View style={styles.stepContainer}>
-              <ShadowCard style={[styles.card, styles.successCard]} padding={30}>
-                <View style={[styles.successIconWrapper, { backgroundColor: theme.primaryLight }]}>
+              <ShadowCard
+                style={[styles.card, styles.successCard]}
+                padding={30}
+              >
+                <View
+                  style={[
+                    styles.successIconWrapper,
+                    { backgroundColor: theme.primaryLight },
+                  ]}
+                >
                   <SymbolView
-                    name={{ ios: 'party.popper.fill', android: 'celebration', web: 'award' }}
+                    name={{
+                      ios: "party.popper.fill",
+                      android: "celebration",
+                      web: "award",
+                    }}
                     tintColor={theme.primary}
                     size={40}
                   />
@@ -254,7 +352,10 @@ export default function SignUpScreen() {
                 <ThemedText style={styles.successTitle} type="subtitle">
                   환영합니다!
                 </ThemedText>
-                <ThemedText style={styles.successSubtitle} themeColor="textSecondary">
+                <ThemedText
+                  style={styles.successSubtitle}
+                  themeColor="textSecondary"
+                >
                   회원가입이 완료되었어요!
                 </ThemedText>
               </ShadowCard>
@@ -285,12 +386,12 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
     paddingHorizontal: 24,
     paddingVertical: 40,
   },
   header: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 24,
   },
   stepContainer: {
@@ -298,8 +399,8 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 28,
-    fontWeight: '800',
-    textAlign: 'center',
+    fontWeight: "800",
+    textAlign: "center",
     marginBottom: 24,
   },
   card: {
@@ -313,19 +414,19 @@ const styles = StyleSheet.create({
     height: 180,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: "#E2E8F0",
     padding: 12,
     marginBottom: 16,
-    backgroundColor: '#FAFBFD',
+    backgroundColor: "#FAFBFD",
   },
   termsText: {
     fontSize: 13,
     lineHeight: 18,
   },
   checkboxRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
     gap: 8,
   },
   checkbox: {
@@ -333,11 +434,11 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 6,
     borderWidth: 2,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   roleTabs: {
-    flexDirection: 'row',
+    flexDirection: "row",
     borderRadius: 12,
     padding: 3,
     marginBottom: 20,
@@ -345,13 +446,13 @@ const styles = StyleSheet.create({
   roleTab: {
     flex: 1,
     paddingVertical: 10,
-    alignItems: 'center',
+    alignItems: "center",
     borderRadius: 9,
   },
   activeTab: {
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
+        shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
         shadowRadius: 3,
@@ -360,7 +461,7 @@ const styles = StyleSheet.create({
         elevation: 2,
       },
       web: {
-        shadowColor: '#000',
+        shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.05,
         shadowRadius: 4,
@@ -369,7 +470,7 @@ const styles = StyleSheet.create({
   },
   roleTabText: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   inputGroup: {
     marginBottom: 16,
@@ -386,20 +487,20 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   successCard: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingVertical: 40,
   },
   successIconWrapper: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: 20,
   },
   successTitle: {
     fontSize: 24,
-    fontWeight: '700',
+    fontWeight: "700",
     marginBottom: 8,
   },
   successSubtitle: {
@@ -408,11 +509,11 @@ const styles = StyleSheet.create({
   button: {
     height: 52,
     borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
+        shadowColor: "#000",
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.15,
         shadowRadius: 8,
@@ -421,7 +522,7 @@ const styles = StyleSheet.create({
         elevation: 4,
       },
       web: {
-        shadowColor: '#000',
+        shadowColor: "#000",
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.1,
         shadowRadius: 8,
@@ -429,11 +530,11 @@ const styles = StyleSheet.create({
     }),
   },
   buttonDisabled: {
-    backgroundColor: '#CCCCCC',
+    backgroundColor: "#CCCCCC",
   },
   buttonText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
+    color: "#FFFFFF",
+    fontWeight: "700",
     fontSize: 16,
   },
   pressed: {

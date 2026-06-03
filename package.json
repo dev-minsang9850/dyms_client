@@ -4,6 +4,9 @@
   "version": "1.0.0",
   "dependencies": {
     "@expo/ui": "~56.0.14",
+    "@react-native-async-storage/async-storage": "^3.1.1",
+    "add": "^2.0.6",
+    "axios": "^1.16.1",
     "expo": "~56.0.6",
     "expo-constants": "~56.0.16",
     "expo-device": "~56.0.4",
@@ -17,6 +20,7 @@
     "expo-symbols": "~56.0.5",
     "expo-system-ui": "~56.0.5",
     "expo-web-browser": "~56.0.5",
+    "pnpm": "^11.5.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.85.3",
