@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, ScrollView, Platform, Pressable, TextInput, Switch, useColorScheme } from 'react-native';
+import { useRouter } from 'expo-router';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { ShadowCard } from '@/components/ShadowCard';
@@ -10,6 +11,7 @@ import { SymbolView } from 'expo-symbols';
 export default function MenuScreen() {
   const { user, logout, updateStatus } = useApp();
   const theme = useTheme();
+  const router = useRouter();
 
   const [statusMsg, setStatusMsg] = useState(user?.statusMessage || '');
   const [isEditing, setIsEditing] = useState(false);
@@ -165,6 +167,40 @@ export default function MenuScreen() {
             </View>
           </ShadowCard>
         </View>
+
+        {/* Admin Section (Only visible to admins) */}
+        {user?.isAdmin && (
+          <View style={styles.settingsSection}>
+            <ThemedText style={styles.sectionTitle} type="smallBold">
+              관리자 메뉴
+            </ThemedText>
+            <ShadowCard style={styles.settingsCard} padding={0}>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.settingRow,
+                  pressed && styles.pressed,
+                ]}
+                onPress={() => router.push('/admin' as any)}
+              >
+                <View style={styles.settingLabelContainer}>
+                  <SymbolView
+                    name={{ ios: 'person.badge.shield.checkmark.fill', android: 'admin_panel_settings', web: 'shield' }}
+                    tintColor={theme.primary}
+                    size={18}
+                  />
+                  <ThemedText style={[styles.settingLabelText, { color: theme.primary }]}>
+                    가입 및 단체 승인 관리
+                  </ThemedText>
+                </View>
+                <SymbolView
+                  name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron-right' }}
+                  tintColor={theme.textSecondary}
+                  size={16}
+                />
+              </Pressable>
+            </ShadowCard>
+          </View>
+        )}
 
         {/* Action list */}
         <View style={styles.actionSection}>

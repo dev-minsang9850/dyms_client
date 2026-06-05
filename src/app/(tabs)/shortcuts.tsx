@@ -58,7 +58,7 @@ export default function ShortcutsScreen() {
           
           <View style={styles.linksGrid}>
             {links.map((link, index) => (
-              <ExternalLink key={index} href={link.url} asChild>
+              <ExternalLink key={index} href={link.url as any} asChild>
                 <Pressable style={({ pressed }) => pressed && styles.pressed}>
                   <ShadowCard style={styles.linkCard} padding={14}>
                     <View style={styles.linkHeader}>
