@@ -6,6 +6,7 @@ import { ThemedView } from '@/components/themed-view';
 import { ShadowCard } from '@/components/ShadowCard';
 import { useApp, Chat } from '@/context/AppContext';
 import { useTheme } from '@/hooks/use-theme';
+import { BlurView } from 'expo-blur';
 import { SymbolView } from '@/components/SymbolView';
 
 export default function ChatsScreen() {
@@ -73,13 +74,24 @@ export default function ChatsScreen() {
   );
 
   return (
-    <ThemedView style={styles.container}>
-      {/* Header */}
-      <View style={[styles.header, { borderBottomColor: theme.border }]}>
-        <ThemedText style={styles.headerTitle} type="subtitle">
-          채팅
-        </ThemedText>
-      </View>
+    <View style={{ flex: 1, backgroundColor: 'transparent', alignItems: 'stretch' }}>
+      <ThemedView style={{ flex: 1, width: '100%', backgroundColor: 'transparent' }}>
+        {/* Glass Header */}
+        <BlurView 
+          intensity={80} 
+          tint={theme.mode === 'dark' ? 'dark' : 'light'}
+          style={[
+            styles.header, 
+            { 
+              backgroundColor: theme.mode === 'dark' ? 'rgba(30, 30, 30, 0.5)' : 'rgba(255, 255, 255, 0.5)',
+              borderBottomColor: theme.mode === 'dark' ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.8)',
+            }
+          ]}
+        >
+          <ThemedText style={styles.headerTitle} type="subtitle">
+            채팅
+          </ThemedText>
+        </BlurView>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {filteredChats.length === 0 ? (
@@ -101,7 +113,7 @@ export default function ChatsScreen() {
                 style={({ pressed }) => pressed && styles.pressed}
                 onPress={() => handleOpenChat(chat.id)}
               >
-                <ShadowCard style={styles.card} padding={16}>
+                <ShadowCard style={styles.card}>
                   <View style={styles.chatRow}>
                     {renderChatAvatar(chat)}
 
@@ -156,7 +168,8 @@ export default function ChatsScreen() {
           size={24}
         />
       </Pressable>
-    </ThemedView>
+      </ThemedView>
+    </View>
   );
 }
 
@@ -271,7 +284,7 @@ const styles = StyleSheet.create({
   },
   fab: {
     position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 108 : 88,
+    bottom: Platform.OS === 'ios' ? 108 : 96,
     right: 20,
     width: 56,
     height: 56,

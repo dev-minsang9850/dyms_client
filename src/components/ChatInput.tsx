@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { View, StyleSheet, TextInput, Pressable, Platform, Keyboard } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
+import { BlurView } from 'expo-blur';
 import { ThemedText } from './themed-text';
 import { useTheme } from '@/hooks/use-theme';
 import { SymbolView } from './SymbolView';
@@ -97,12 +98,20 @@ export function ChatInput({
   };
 
   return (
-    <View
-      style={[styles.container, { backgroundColor: theme.card, borderTopColor: theme.border }]}
+    <BlurView
+      intensity={80}
+      tint={theme.mode === 'dark' ? 'dark' : 'light'}
+      style={[
+        styles.container, 
+        { 
+          backgroundColor: theme.mode === 'dark' ? 'rgba(30, 30, 30, 0.5)' : 'rgba(255, 255, 255, 0.5)', 
+          borderTopColor: theme.mode === 'dark' ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.8)' 
+        }
+      ]}
     >
       {/* Typing indicator */}
       {typingUserName && (
-        <View style={[styles.typingIndicator, { backgroundColor: theme.background }]}>
+        <View style={[styles.typingIndicator, { backgroundColor: theme.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)' }]}>
           <View style={styles.dotsRow}>
             <View style={[styles.dot, { backgroundColor: theme.primary }]} />
             <View style={[styles.dot, { backgroundColor: theme.primary, opacity: 0.6 }]} />
@@ -121,7 +130,7 @@ export function ChatInput({
         >
           <SymbolView
             name={{ ios: 'plus', android: 'add', web: 'plus' }}
-            tintColor={showActions ? theme.primary : theme.textSecondary}
+            tintColor={showActions ? theme.primary : theme.text}
             size={22}
           />
         </Pressable>
@@ -235,7 +244,7 @@ export function ChatInput({
           )}
         </View>
       )}
-    </View>
+    </BlurView>
   );
 }
 

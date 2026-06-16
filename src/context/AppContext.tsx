@@ -27,6 +27,7 @@ export interface User {
   number?: number;
   position?: "none" | "head" | "deputy";
   workspace?: string;
+  profileImage?: string;
 }
 
 export interface Notice {
@@ -76,6 +77,7 @@ export interface Friend {
   detail: string;
   status: "online" | "offline" | "in-class";
   statusMessage?: string;
+  profileImage?: string;
 }
 
 export interface Workspace {
@@ -123,7 +125,7 @@ interface AppContextType {
   loadChats: () => Promise<void>;
   loadMessages: (chatId: string) => Promise<void>;
   sendMessage: (
-    chatId: string, 
+    chatId: string,
     content: string,
     fileUrl?: string,
     fileName?: string,
@@ -146,6 +148,7 @@ interface AppContextType {
   activeChatId: string | null;
   setActiveChatId: (chatId: string | null) => void;
   createNotice: (title: string, content: string, tag: string) => Promise<boolean>;
+  deleteNotice: (id: string) => Promise<boolean>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -305,11 +308,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         id: u.id,
         name: u.name,
         role: u.role,
-        detail: u.role === 'teacher' 
-          ? `교직원${u.position === 'head' ? ' (부장)' : u.position === 'deputy' ? ' (차장)' : ''}` 
+        detail: u.role === 'teacher'
+          ? `교직원${u.position === 'head' ? ' (부장)' : u.position === 'deputy' ? ' (차장)' : ''}`
           : (u.grade && u.class) ? `${u.grade}학년 ${u.class}반` : '학적 정보 없음',
         status: 'online',
         statusMessage: u.statusMessage || '',
+        profileImage: u.profileImage,
       }));
       setFriends(mapped);
     } catch (friendsErr) {
@@ -360,7 +364,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         }
       });
     }
-  }, [token, user]); // Added user to dependencies
+  }, [token, user?.id]); // Only depend on user ID to avoid infinite loop on user update
 
   async function registerForPushNotificationsAsync() {
     let pushToken;
@@ -377,6 +381,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     if (Device.isDevice) {
       const { status: existingStatus } = await Notifications.getPermissionsAsync();
       let finalStatus = existingStatus;
+      if (Platform.OS === 'web') return null; // Web push not yet fully supported
+      
       if (existingStatus !== 'granted') {
         const { status } = await Notifications.requestPermissionsAsync();
         finalStatus = status;
@@ -385,7 +391,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         console.warn('Failed to get push token for push notification!');
         return null;
       }
-      
+
       try {
         const projectId =
           Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId;
@@ -503,7 +509,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           ...c,
           members: c.memberIds || [],
         }))
-        .filter((c: any) => 
+        .filter((c: any) =>
           !selectedWorkspace || (c.workspace && c.workspace.toLowerCase() === selectedWorkspace.name.toLowerCase())
         );
 
@@ -513,7 +519,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           mappedChats.forEach((newChat: any) => {
             const oldChat = prevChats.find((c) => c.id === newChat.id);
             const oldUnread = oldChat ? oldChat.unreadCount : 0;
-            
+
             // If the unreadCount increased, and the user is not currently viewing this chat room
             if (newChat.unreadCount > oldUnread && activeChatIdRef.current !== newChat.id) {
               // Get the chat display name
@@ -523,7 +529,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
                 const friend = friendId ? friends.find((f) => f.id === friendId) : null;
                 chatName = friend ? friend.name : (newChat.name || '사용자');
               }
-              
+
               // Set inAppNotification
               setInAppNotification({
                 title: chatName,
@@ -571,14 +577,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   const sendMessage = async (
-    chatId: string, 
+    chatId: string,
     content: string,
     fileUrl?: string,
     fileName?: string,
     fileType?: 'image' | 'video' | 'file'
   ) => {
     try {
-      const res = await api.post(`/chats/${chatId}/messages`, { 
+      const res = await api.post(`/chats/${chatId}/messages`, {
         content,
         fileUrl,
         fileName,
@@ -622,11 +628,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           id: u.id,
           name: u.name,
           role: u.role,
-          detail: u.role === 'teacher' 
-            ? `교직원${u.position === 'head' ? ' (부장)' : u.position === 'deputy' ? ' (차장)' : ''}` 
+          detail: u.role === 'teacher'
+            ? `교직원${u.position === 'head' ? ' (부장)' : u.position === 'deputy' ? ' (차장)' : ''}`
             : (u.grade && u.class) ? `${u.grade}학년 ${u.class}반` : '학적 정보 없음',
           status: 'online',
           statusMessage: u.statusMessage || '',
+          profileImage: u.profileImage,
         }));
         setFriends(mapped);
         setSelectedWorkspace(workspace); // Update selection after successful server sync
@@ -711,12 +718,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       };
       setUser(mappedUser);
       await AsyncStorage.setItem("dyms_user", JSON.stringify(mappedUser));
-      
+
       // If student profile changed grade/class, trigger reloading the school data/timetable
       if (data.grade !== undefined || data.class !== undefined) {
         await loadSchoolData(mappedUser);
       }
-      
+
       return true;
     } catch (e) {
       console.warn("updateProfile error", e);
@@ -766,6 +773,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
+  const deleteNotice = async (id: string): Promise<boolean> => {
+    try {
+      await api.delete(`/school/notices/${id}`);
+      setNotices((prev) => prev.filter((n) => n.id !== id));
+      return true;
+    } catch (e) {
+      console.warn("deleteNotice error", e);
+      return false;
+    }
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -803,6 +821,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         activeChatId,
         setActiveChatId,
         createNotice,
+        deleteNotice,
       }}
     >
       {children}

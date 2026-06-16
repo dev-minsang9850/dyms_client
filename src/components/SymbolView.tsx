@@ -89,8 +89,23 @@ const sfToIonicons: { [key: string]: any } = {
   'info.circle.fill': 'information-circle',
   'exclamationmark.triangle': 'warning-outline',
   'exclamationmark.triangle.fill': 'warning',
-  'book': 'book-outline',
   'tray.fill': 'server-outline',
+
+  // Media & Files
+  'photo.fill': 'image',
+  'image': 'image',
+  'video.fill': 'videocam',
+  'videocam': 'videocam',
+  'video': 'videocam',
+  'doc.fill': 'document',
+  'description': 'document',
+  'doc.richtext.fill': 'document-text',
+  'file': 'document',
+  'arrow.down.circle.fill': 'download',
+  'download': 'download',
+  'play.circle.fill': 'play-circle',
+  'play_circle': 'play-circle',
+  'play': 'play',
 
   // Common Material/Web fallback translations
   'chat': 'chatbubbles',

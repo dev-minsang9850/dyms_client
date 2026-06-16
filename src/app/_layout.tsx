@@ -10,6 +10,15 @@ import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInUp, FadeOutUp } from 'react-native-reanimated';
 import { SymbolView } from '@/components/SymbolView';
 import { ThemedText } from '@/components/themed-text';
+import { LinearGradient } from 'expo-linear-gradient';
+import { LogBox } from 'react-native';
+
+// Suppress known benign warnings on web
+LogBox.ignoreLogs([
+  'Listening to push token changes is not yet fully supported on web',
+  '"shadow*" style props are deprecated. Use "boxShadow"',
+  'getExpoPushTokenAsync error',
+]);
 
 function LayoutGuard() {
   const { user, selectedWorkspace, themeMode, isRestoring, inAppNotification, setInAppNotification } = useApp();
@@ -59,8 +68,11 @@ function LayoutGuard() {
   return (
     <ThemeProvider value={themeMode === 'dark' ? DarkTheme : DefaultTheme}>
       <AnimatedSplashOverlay />
-      <View style={[styles.outerContainer, { backgroundColor: themeMode === 'dark' ? '#0a0a0c' : '#f0f2f5' }]}>
-        <View style={[styles.innerContainer, { backgroundColor: theme.background, borderColor: theme.border }]}>
+      <LinearGradient 
+        colors={theme.gradientBase as any}
+        style={styles.outerContainer}
+      >
+        <View style={[styles.innerContainer, { backgroundColor: 'transparent', borderColor: theme.border }]}>
           <Slot />
           {inAppNotification && (
             <Animated.View
@@ -106,7 +118,7 @@ function LayoutGuard() {
             </Animated.View>
           )}
         </View>
-      </View>
+      </LinearGradient>
     </ThemeProvider>
   );
 }
@@ -122,9 +134,6 @@ const styles = StyleSheet.create({
   innerContainer: {
     flex: 1,
     width: '100%',
-    maxWidth: 800,
-    borderLeftWidth: Platform.OS === 'web' ? 1 : 0,
-    borderRightWidth: Platform.OS === 'web' ? 1 : 0,
     ...Platform.select({
       web: {
         boxShadow: '0 0 24px rgba(0, 0, 0, 0.06)',

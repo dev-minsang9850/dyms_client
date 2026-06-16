@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, Platform, Pressable, TextInput, Switch, Modal, ActivityIndicator, Alert } from 'react-native';
+import { View, StyleSheet, ScrollView, Platform, Pressable, TextInput, Switch, Modal, ActivityIndicator, Alert, Image } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -118,6 +119,26 @@ export default function MenuScreen() {
     logout();
   };
 
+  const handlePickImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.2,
+      base64: true,
+    });
+
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      const base64Img = `data:image/jpeg;base64,${result.assets[0].base64}`;
+      const success = await updateProfile({ profileImage: base64Img });
+      if (success) {
+        Alert.alert('성공', '프로필 사진이 변경되었습니다.');
+      } else {
+        Alert.alert('오류', '프로필 사진 변경에 실패했습니다. (용량이 너무 클 수 있습니다)');
+      }
+    }
+  };
+
   return (
     <ThemedView style={styles.container}>
       {/* Header */}
@@ -132,11 +153,20 @@ export default function MenuScreen() {
         {user && (
           <ShadowCard style={styles.profileCard} padding={20}>
             <View style={styles.profileHeader}>
-              <View style={[styles.avatar, { backgroundColor: theme.primaryLight }]}>
-                <ThemedText style={{ color: theme.primary, fontSize: 22, fontWeight: '700' }}>
-                  {user.name.slice(-2)}
-                </ThemedText>
-              </View>
+              <Pressable onPress={handlePickImage}>
+                <View style={[styles.avatar, { backgroundColor: theme.primaryLight, overflow: 'hidden', position: 'relative' }]}>
+                  {user.profileImage ? (
+                    <Image source={{ uri: user.profileImage }} style={{ width: '100%', height: '100%' }} />
+                  ) : (
+                    <ThemedText style={{ color: theme.primary, fontSize: 22, fontWeight: '700' }}>
+                      {user.name.slice(-2)}
+                    </ThemedText>
+                  )}
+                  <View style={{ position: 'absolute', bottom: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.5)', width: 24, height: 24, borderRadius: 12, justifyContent: 'center', alignItems: 'center' }}>
+                    <SymbolView name={{ ios: 'camera.fill', android: 'camera', web: 'camera' }} size={12} tintColor="#FFF" />
+                  </View>
+                </View>
+              </Pressable>
               <View style={styles.userInfo}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
                   <ThemedText style={styles.userName} type="subtitle">

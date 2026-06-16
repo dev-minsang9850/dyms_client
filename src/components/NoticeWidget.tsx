@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, Pressable, LayoutAnimation, Platform, UIManager } from 'react-native';
+import { View, StyleSheet, Pressable, LayoutAnimation, Platform, UIManager, Alert } from 'react-native';
 import { ThemedText } from './themed-text';
 import { ShadowCard } from './ShadowCard';
-import { Notice } from '@/context/AppContext';
+import { Notice, useApp } from '@/context/AppContext';
 import { useTheme } from '@/hooks/use-theme';
 import { SymbolView } from './SymbolView';
+import { Ionicons } from '@expo/vector-icons';
 
 // Enable layout animation on Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -13,11 +14,33 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 
 export function NoticeWidget({ notice }: { notice: Notice }) {
   const theme = useTheme();
+  const { user, deleteNotice } = useApp();
   const [expanded, setExpanded] = useState(false);
+
+  const isTeacherOrAdmin = user?.role === 'teacher' || user?.isAdmin;
 
   const toggleExpand = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setExpanded(!expanded);
+  };
+
+  const handleDelete = () => {
+    if (Platform.OS === 'web') {
+      if (window.confirm('공지사항을 정말 삭제하시겠습니까?')) {
+        deleteNotice(notice.id);
+      }
+    } else {
+      Alert.alert('공지 삭제', '정말 삭제하시겠습니까?', [
+        { text: '취소', style: 'cancel' },
+        { 
+          text: '삭제', 
+          style: 'destructive',
+          onPress: () => {
+            deleteNotice(notice.id);
+          }
+        }
+      ]);
+    }
   };
 
   const getTagColors = () => {
@@ -38,14 +61,22 @@ export function NoticeWidget({ notice }: { notice: Notice }) {
     <Pressable onPress={toggleExpand}>
       <ShadowCard style={[styles.card, expanded && { borderColor: theme.primary }]}>
         <View style={styles.header}>
-          <View style={[styles.tag, { backgroundColor: tagColors.bg }]}>
-            <ThemedText style={[styles.tagText, { color: tagColors.text }]}>
-              {notice.tag}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={[styles.tag, { backgroundColor: tagColors.bg }]}>
+              <ThemedText style={[styles.tagText, { color: tagColors.text }]}>
+                {notice.tag}
+              </ThemedText>
+            </View>
+            <ThemedText type="small" themeColor="textSecondary">
+              {notice.date}
             </ThemedText>
           </View>
-          <ThemedText type="small" themeColor="textSecondary">
-            {notice.date}
-          </ThemedText>
+          
+          {isTeacherOrAdmin && (
+            <Pressable onPress={handleDelete} style={{ padding: 4 }}>
+              <Ionicons name="trash-outline" size={16} color="#FF3B30" />
+            </Pressable>
+          )}
         </View>
 
         <ThemedText style={styles.title} type="smallBold">
@@ -130,7 +161,6 @@ const styles = StyleSheet.create({
   bodyContent: {
     fontSize: 14,
     lineHeight: 20,
-    color: '#444444',
   },
   collapseIndicator: {
     flexDirection: 'row',

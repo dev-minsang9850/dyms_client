@@ -6,6 +6,7 @@ import { NoticeWidget } from '@/components/NoticeWidget';
 import { useApp } from '@/context/AppContext';
 import { useTheme } from '@/hooks/use-theme';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 
 export default function BoardScreen() {
   const { notices, user, createNotice } = useApp();
@@ -38,13 +39,24 @@ export default function BoardScreen() {
   };
 
   return (
-    <ThemedView style={styles.container}>
-      {/* Header */}
-      <View style={[styles.header, { borderBottomColor: theme.border }]}>
-        <ThemedText style={styles.headerTitle} type="subtitle">
-          보드
-        </ThemedText>
-      </View>
+    <View style={{ flex: 1, backgroundColor: 'transparent', alignItems: 'stretch' }}>
+      <ThemedView style={{ flex: 1, width: '100%', backgroundColor: 'transparent' }}>
+        {/* Glass Header */}
+        <BlurView 
+          intensity={80} 
+          tint={theme.mode === 'dark' ? 'dark' : 'light'}
+          style={[
+            styles.header, 
+            { 
+              backgroundColor: theme.mode === 'dark' ? 'rgba(30, 30, 30, 0.5)' : 'rgba(255, 255, 255, 0.5)',
+              borderBottomColor: theme.mode === 'dark' ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.8)',
+            }
+          ]}
+        >
+          <ThemedText style={styles.headerTitle} type="subtitle">
+            보드
+          </ThemedText>
+        </BlurView>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.introContainer}>
@@ -74,56 +86,59 @@ export default function BoardScreen() {
       )}
 
       {/* Write Modal */}
-      <Modal visible={modalVisible} animationType="slide" presentationStyle="pageSheet">
-        <ThemedView style={styles.modalContainer}>
-          <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
-            <TouchableOpacity onPress={() => setModalVisible(false)}>
-              <ThemedText style={{ color: theme.tint, fontSize: 16 }}>취소</ThemedText>
-            </TouchableOpacity>
-            <ThemedText type="defaultSemiBold">공지사항 작성</ThemedText>
-            <TouchableOpacity onPress={handleCreateNotice} disabled={isSubmitting}>
-              <ThemedText style={{ color: theme.tint, fontSize: 16, opacity: isSubmitting ? 0.5 : 1, fontWeight: 'bold' }}>
-                등록
-              </ThemedText>
-            </TouchableOpacity>
-          </View>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-            <ScrollView contentContainerStyle={styles.modalContent}>
-              <View style={styles.tagSelector}>
-                {['공지', '긴급', '행사'].map((t) => (
-                  <TouchableOpacity
-                    key={t}
-                    style={[
-                      styles.tagButton,
-                      { backgroundColor: tag === t ? theme.tint : theme.card, borderColor: theme.border }
-                    ]}
-                    onPress={() => setTag(t)}
-                  >
-                    <ThemedText style={{ color: tag === t ? '#fff' : theme.text }}>{t}</ThemedText>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <TextInput
-                style={[styles.inputTitle, { color: theme.text, borderColor: theme.border }]}
-                placeholder="제목을 입력하세요"
-                placeholderTextColor={theme.textSecondary}
-                value={title}
-                onChangeText={setTitle}
-              />
-              <TextInput
-                style={[styles.inputContent, { color: theme.text, borderColor: theme.border }]}
-                placeholder="내용을 입력하세요"
-                placeholderTextColor={theme.textSecondary}
-                value={content}
-                onChangeText={setContent}
-                multiline
-                textAlignVertical="top"
-              />
-            </ScrollView>
-          </KeyboardAvoidingView>
-        </ThemedView>
+      <Modal visible={modalVisible} animationType="fade" transparent presentationStyle="overFullScreen">
+        <BlurView intensity={40} style={{ flex: 1, justifyContent: 'center', padding: Platform.OS === 'web' ? 40 : 0 }}>
+          <ThemedView style={[styles.modalContainer, Platform.OS === 'web' && { maxHeight: 800, borderRadius: 24, overflow: 'hidden', alignSelf: 'center', width: '100%', maxWidth: 800, borderWidth: 1, borderColor: theme.border }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: theme.border, backgroundColor: theme.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)' }]}>
+              <TouchableOpacity onPress={() => setModalVisible(false)}>
+                <ThemedText style={{ color: theme.textSecondary, fontSize: 16 }}>취소</ThemedText>
+              </TouchableOpacity>
+              <ThemedText type="defaultSemiBold">공지사항 작성</ThemedText>
+              <TouchableOpacity onPress={handleCreateNotice} disabled={isSubmitting}>
+                <ThemedText style={{ color: theme.primary, fontSize: 16, opacity: isSubmitting ? 0.5 : 1, fontWeight: 'bold' }}>
+                  등록
+                </ThemedText>
+              </TouchableOpacity>
+            </View>
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+              <ScrollView contentContainerStyle={styles.modalContent}>
+                <View style={styles.tagSelector}>
+                  {['공지', '긴급', '행사'].map((t) => (
+                    <TouchableOpacity
+                      key={t}
+                      style={[
+                        styles.tagButton,
+                        { backgroundColor: tag === t ? theme.primary : theme.card, borderColor: tag === t ? theme.primary : theme.border }
+                      ]}
+                      onPress={() => setTag(t)}
+                    >
+                      <ThemedText style={{ color: tag === t ? '#fff' : theme.text, fontWeight: tag === t ? '700' : '400' }}>{t}</ThemedText>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <TextInput
+                  style={[styles.inputTitle, { color: theme.text, borderColor: theme.border, backgroundColor: theme.mode === 'dark' ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.5)', paddingHorizontal: 16, borderRadius: 12, borderWidth: 1 }]}
+                  placeholder="제목을 입력하세요"
+                  placeholderTextColor={theme.textSecondary}
+                  value={title}
+                  onChangeText={setTitle}
+                />
+                <TextInput
+                  style={[styles.inputContent, { color: theme.text, borderColor: theme.border, backgroundColor: theme.mode === 'dark' ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.5)', paddingHorizontal: 16, borderRadius: 12, borderWidth: 1 }]}
+                  placeholder="내용을 입력하세요"
+                  placeholderTextColor={theme.textSecondary}
+                  value={content}
+                  onChangeText={setContent}
+                  multiline
+                  textAlignVertical="top"
+                />
+              </ScrollView>
+            </KeyboardAvoidingView>
+          </ThemedView>
+        </BlurView>
       </Modal>
-    </ThemedView>
+      </ThemedView>
+    </View>
   );
 }
 
@@ -162,8 +177,8 @@ const styles = StyleSheet.create({
   },
   fab: {
     position: 'absolute',
-    bottom: 24,
-    right: 24,
+    bottom: Platform.OS === 'ios' ? 108 : 88,
+    right: 20,
     width: 56,
     height: 56,
     borderRadius: 28,

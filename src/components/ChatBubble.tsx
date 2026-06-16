@@ -1,6 +1,7 @@
 // src/components/ChatBubble.tsx
 import React from 'react';
-import { View, StyleSheet, Dimensions, Image, Pressable } from 'react-native';
+import { View, StyleSheet, Dimensions, Image, Pressable, Platform } from 'react-native';
+import { BlurView } from 'expo-blur';
 import * as WebBrowser from 'expo-web-browser';
 import { ThemedText } from './themed-text';
 import { Message, useApp } from '@/context/AppContext';
@@ -62,15 +63,17 @@ export function ChatBubble({ message, isMe, memberCount }: { message: Message; i
       )}
 
       <View style={[styles.bubbleWrapper, isMe ? styles.rowReverse : styles.row]}>
-        <View
+        <BlurView
+          intensity={themeMode === 'dark' ? 30 : 50}
+          tint={themeMode === 'dark' ? 'dark' : 'light'}
           style={[
             styles.bubble,
             isMe
-              ? [styles.myBubble, { backgroundColor: theme.primary }]
+              ? [styles.myBubble, { backgroundColor: isDark ? 'rgba(10, 132, 255, 0.4)' : 'rgba(0, 122, 255, 0.2)' }]
               : isTeacher
-              ? [styles.teacherBubble, { backgroundColor: isDark ? '#312348' : '#F5EEFF', borderColor: isDark ? '#5E3E9B' : '#E1C4FF' }]
-              : [styles.otherBubble, { backgroundColor: theme.border }],
-            message.fileUrl && message.fileType === 'image' && { padding: 4, overflow: 'hidden' }
+              ? [styles.teacherBubble, { backgroundColor: isDark ? 'rgba(94, 62, 155, 0.4)' : 'rgba(225, 196, 255, 0.4)' }]
+              : [styles.otherBubble, { backgroundColor: theme.card }],
+            message.fileUrl && message.fileType === 'image' && { padding: 4 }
           ]}
         >
           {message.fileUrl ? (
@@ -135,7 +138,7 @@ export function ChatBubble({ message, isMe, memberCount }: { message: Message; i
               {message.content}
             </ThemedText>
           )}
-        </View>
+        </BlurView>
 
         <View style={[styles.metaInfo, isMe ? styles.alignMetaRight : styles.alignMetaLeft]}>
           {unreadCount > 0 && (
@@ -195,20 +198,36 @@ const styles = StyleSheet.create({
     flexDirection: 'row-reverse',
   },
   bubble: {
-    borderRadius: 18,
+    borderRadius: 20,
     paddingHorizontal: 14,
     paddingVertical: 10,
     maxWidth: SCREEN_WIDTH * 0.65,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 2,
+      },
+      web: {
+        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.05)',
+      } as any,
+    }),
   },
   myBubble: {
-    borderBottomRightRadius: 2,
+    borderBottomRightRadius: 4,
   },
   otherBubble: {
-    borderBottomLeftRadius: 2,
+    borderBottomLeftRadius: 4,
   },
   teacherBubble: {
-    borderBottomLeftRadius: 2,
-    borderWidth: 1,
+    borderBottomLeftRadius: 4,
   },
   messageText: {
     fontSize: 15,
@@ -250,8 +269,8 @@ const styles = StyleSheet.create({
     color: '#555555',
   },
   imageContainer: {
-    width: SCREEN_WIDTH * 0.5,
-    height: SCREEN_WIDTH * 0.5,
+    width: Math.min(SCREEN_WIDTH * 0.5, 280),
+    height: Math.min(SCREEN_WIDTH * 0.5, 280),
     borderRadius: 14,
     overflow: 'hidden',
     position: 'relative',
@@ -272,8 +291,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   videoContainer: {
-    width: SCREEN_WIDTH * 0.5,
-    height: 120,
+    width: Math.min(SCREEN_WIDTH * 0.5, 280),
+    height: 160,
     borderRadius: 14,
     overflow: 'hidden',
   },

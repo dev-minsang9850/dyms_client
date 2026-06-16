@@ -10,25 +10,27 @@ import { Platform } from 'react-native';
 export const Colors = {
   light: {
     text: '#1C1C1E',
-    background: '#F2F5F9',
-    backgroundElement: '#FFFFFF',
-    backgroundSelected: '#E4EDF7',
+    background: '#F2F5F9', // Fallback
+    backgroundElement: 'rgba(255, 255, 255, 0.65)', // Clearer glass
+    backgroundSelected: 'rgba(255, 255, 255, 0.8)',
     textSecondary: '#6E7682',
     primary: '#007AFF',
-    primaryLight: '#E5F1FF',
-    border: '#E2E8F0',
-    card: '#FFFFFF',
+    primaryLight: 'rgba(0, 122, 255, 0.1)',
+    border: 'rgba(255, 255, 255, 0.5)', // Subtle white border
+    card: 'rgba(255, 255, 255, 0.55)', // Clean glass card
+    gradientBase: ['#e9d7fc', '#b7dafd'], // 50% intensity Apple-like background
   },
   dark: {
     text: '#FFFFFF',
-    background: '#121214',
-    backgroundElement: '#1E1E22',
-    backgroundSelected: '#2D2D35',
+    background: '#000000', // Fallback
+    backgroundElement: 'rgba(30, 30, 35, 0.6)', // Deep glass
+    backgroundSelected: 'rgba(50, 50, 55, 0.8)',
     textSecondary: '#9A9EA7',
     primary: '#0A84FF',
-    primaryLight: '#1A2A3A',
-    border: '#2A2A30',
-    card: '#1E1E22',
+    primaryLight: 'rgba(10, 132, 255, 0.2)',
+    border: 'rgba(255, 255, 255, 0.1)', // Subtle light border
+    card: 'rgba(28, 28, 32, 0.6)', // Deep glass card
+    gradientBase: ['#0A0A12', '#12121A', '#1C1C28'], // Unified midnight blue
   },
 } as const;
 

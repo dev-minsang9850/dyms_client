@@ -21,6 +21,8 @@ import { useTheme } from '@/hooks/use-theme';
 import { SymbolView } from '@/components/SymbolView';
 import { ShadowCard } from '@/components/ShadowCard';
 import { api } from '@/lib/api';
+import { BlurView } from 'expo-blur';
+import { useWindowDimensions } from 'react-native';
 
 export default function ChatRoomScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -28,6 +30,8 @@ export default function ChatRoomScreen() {
   const theme = useTheme();
   const router = useRouter();
   const scrollViewRef = useRef<ScrollView>(null);
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 768;
 
   const chat = chats.find((c) => c.id === id);
   const chatMessages = messages[id || ''] || [];
@@ -221,19 +225,33 @@ export default function ChatRoomScreen() {
     if (!id) return;
     try {
       const formData = new FormData();
-      formData.append('file', {
-        uri,
-        name,
-        type: mimeType,
-      } as any);
 
-      const res = await api.post('/upload', formData, {
+      if (Platform.OS === 'web') {
+        const fetchRes = await fetch(uri);
+        const blob = await fetchRes.blob();
+        formData.append('file', blob, name);
+      } else {
+        formData.append('file', {
+          uri,
+          name,
+          type: mimeType,
+        } as any);
+      }
+
+      const res = await fetch(`${api.defaults.baseURL || 'http://localhost:3000'}/upload`, {
+        method: 'POST',
         headers: {
-          'Content-Type': 'multipart/form-data',
+          Authorization: api.defaults.headers.common.Authorization as string,
         },
+        body: formData,
       });
 
-      const { url } = res.data;
+      if (!res.ok) {
+        throw new Error('Upload failed');
+      }
+
+      const data = await res.json();
+      const { url } = data;
       await sendMessage(id, `[파일 전송] ${name}`, url, name, type);
     } catch (e: any) {
       console.warn("File upload error", e);
@@ -246,53 +264,64 @@ export default function ChatRoomScreen() {
     (user.role === 'teacher' || user.position === 'head' || user.position === 'deputy');
 
   return (
-    <ThemedView style={styles.container}>
-      {/* Custom Header */}
-      <View style={[styles.header, { borderBottomColor: theme.border, backgroundColor: theme.card }]}>
-        <Pressable style={styles.backButton} onPress={() => {
-          if (router.canGoBack()) {
-            router.back();
-          } else {
-            router.replace('/chats');
-          }
-        }}>
-          <SymbolView
-            name={{ ios: 'chevron.left', android: 'arrow_back', web: 'chevron-left' }}
-            tintColor={theme.text}
-            size={24}
-          />
-        </Pressable>
+    <View style={{ flex: 1, backgroundColor: 'transparent', alignItems: 'stretch' }}>
+      <ThemedView style={[styles.container, isDesktop && { width: '100%', alignSelf: 'center', borderWidth: 1, borderColor: theme.border, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 20, marginVertical: 20, borderRadius: 24, overflow: 'hidden', backgroundColor: 'transparent' }]}>
+        {/* Custom Glass Header */}
+        <BlurView 
+          intensity={80} 
+          tint={theme.mode === 'dark' ? 'dark' : 'light'}
+          style={[
+            styles.header, 
+            { 
+              backgroundColor: theme.mode === 'dark' ? 'rgba(30, 30, 30, 0.5)' : 'rgba(255, 255, 255, 0.5)',
+              borderBottomColor: theme.mode === 'dark' ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.8)',
+            }
+          ]}
+        >
+          <Pressable style={styles.backButton} onPress={() => {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace('/chats');
+            }
+          }}>
+            <SymbolView
+              name={{ ios: 'chevron.left', android: 'arrow_back', web: 'chevron-left' }}
+              tintColor={theme.text}
+              size={24}
+            />
+          </Pressable>
 
-        <View style={styles.headerInfo}>
-          <ThemedText style={styles.headerTitle} type="smallBold" numberOfLines={1}>
-            {chat.name}
-          </ThemedText>
-          {chat.type === 'group' && (
-            <ThemedText style={styles.memberCount} themeColor="textSecondary">
-              멤버 {chat.members.length}명
+          <View style={styles.headerInfo}>
+            <ThemedText style={styles.headerTitle} type="smallBold" numberOfLines={1}>
+              {chat.name}
             </ThemedText>
-          )}
-        </View>
-
-        {chat.type === 'group' && isTeacherOrHead && (
-          <View style={styles.headerActions}>
-            <Pressable style={styles.iconButton} onPress={() => setShowVoteModal(true)}>
-              <SymbolView
-                name={{ ios: 'checkmark.circle.fill', android: 'poll', web: 'check' }}
-                tintColor={theme.primary}
-                size={22}
-              />
-            </Pressable>
-            <Pressable style={styles.iconButton} onPress={() => setShowEventModal(true)}>
-              <SymbolView
-                name={{ ios: 'calendar.badge.plus', android: 'calendar_today', web: 'calendar' }}
-                tintColor={theme.primary}
-                size={22}
-              />
-            </Pressable>
+            {chat.type === 'group' && (
+              <ThemedText style={styles.memberCount} themeColor="textSecondary">
+                멤버 {chat.members.length}명
+              </ThemedText>
+            )}
           </View>
-        )}
-      </View>
+
+          {chat.type === 'group' && isTeacherOrHead && (
+            <View style={styles.headerActions}>
+              <Pressable style={styles.iconButton} onPress={() => setShowVoteModal(true)}>
+                <SymbolView
+                  name={{ ios: 'checkmark.circle.fill', android: 'poll', web: 'check' }}
+                  tintColor={theme.primary}
+                  size={22}
+                />
+              </Pressable>
+              <Pressable style={styles.iconButton} onPress={() => setShowEventModal(true)}>
+                <SymbolView
+                  name={{ ios: 'calendar.badge.plus', android: 'calendar_today', web: 'calendar' }}
+                  tintColor={theme.primary}
+                  size={22}
+                />
+              </Pressable>
+            </View>
+          )}
+        </BlurView>
 
       {/* Pinned Votes & Events Slider Panel */}
       {chat.type === 'group' && (votes.length > 0 || events.length > 0) && (
@@ -424,11 +453,11 @@ export default function ChatRoomScreen() {
 
       {/* Modal: Create Vote */}
       <Modal visible={showVoteModal} transparent animationType="fade" onRequestClose={() => setShowVoteModal(false)}>
-        <View style={styles.modalOverlay}>
-          <ThemedView style={styles.modalContent}>
+        <BlurView intensity={60} tint={theme.mode === 'dark' ? 'dark' : 'light'} style={styles.modalOverlay}>
+          <BlurView intensity={40} tint={theme.mode === 'dark' ? 'dark' : 'light'} style={[styles.modalContent, { backgroundColor: theme.card, borderWidth: 1, borderColor: theme.border }]}>
             <ThemedText type="subtitle">새 학급 투표 만들기</ThemedText>
             <TextInput
-              style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border }]}
+              style={[styles.input, { backgroundColor: theme.mode === 'dark' ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.5)', color: theme.text, borderColor: theme.border }]}
               placeholder="투표 제목을 입력하세요"
               placeholderTextColor={theme.textSecondary}
               value={voteTitle}
@@ -441,7 +470,7 @@ export default function ChatRoomScreen() {
                 {voteOptions.map((opt, idx) => (
                   <View key={idx} style={styles.optionInputRow}>
                     <TextInput
-                      style={[styles.input, { flex: 1, backgroundColor: theme.background, color: theme.text, borderColor: theme.border }]}
+                      style={[styles.input, { flex: 1, backgroundColor: theme.mode === 'dark' ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.5)', color: theme.text, borderColor: theme.border }]}
                       placeholder={`선택항목 ${idx + 1}`}
                       placeholderTextColor={theme.textSecondary}
                       value={opt}
@@ -462,32 +491,32 @@ export default function ChatRoomScreen() {
             </Pressable>
 
             <View style={styles.modalActions}>
-              <Pressable style={[styles.modalBtn, { backgroundColor: theme.border }]} onPress={() => setShowVoteModal(false)}>
+              <Pressable style={[styles.modalBtn, { backgroundColor: theme.mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]} onPress={() => setShowVoteModal(false)}>
                 <ThemedText>취소</ThemedText>
               </Pressable>
               <Pressable style={[styles.modalBtn, { backgroundColor: theme.primary }]} onPress={handleCreateVote} disabled={submitting}>
                 <ThemedText style={{ color: '#FFFFFF', fontWeight: '700' }}>개설</ThemedText>
               </Pressable>
             </View>
-          </ThemedView>
-        </View>
+          </BlurView>
+        </BlurView>
       </Modal>
 
       {/* Modal: Create Event */}
       <Modal visible={showEventModal} transparent animationType="fade" onRequestClose={() => setShowEventModal(false)}>
-        <View style={styles.modalOverlay}>
-          <ThemedView style={styles.modalContent}>
+        <BlurView intensity={60} tint={theme.mode === 'dark' ? 'dark' : 'light'} style={styles.modalOverlay}>
+          <BlurView intensity={40} tint={theme.mode === 'dark' ? 'dark' : 'light'} style={[styles.modalContent, { backgroundColor: theme.card, borderWidth: 1, borderColor: theme.border }]}>
             <ThemedText type="subtitle">학급 일정 개설</ThemedText>
             <View style={{ gap: 12 }}>
               <TextInput
-                style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border }]}
+                style={[styles.input, { backgroundColor: theme.mode === 'dark' ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.5)', color: theme.text, borderColor: theme.border }]}
                 placeholder="일정 제목"
                 placeholderTextColor={theme.textSecondary}
                 value={eventTitle}
                 onChangeText={setEventTitle}
               />
               <TextInput
-                style={[styles.input, { height: 70, backgroundColor: theme.background, color: theme.text, borderColor: theme.border }]}
+                style={[styles.input, { height: 70, backgroundColor: theme.mode === 'dark' ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.5)', color: theme.text, borderColor: theme.border }]}
                 placeholder="상세 설명 (선택)"
                 placeholderTextColor={theme.textSecondary}
                 value={eventDesc}
@@ -495,7 +524,7 @@ export default function ChatRoomScreen() {
                 multiline
               />
               <TextInput
-                style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border }]}
+                style={[styles.input, { backgroundColor: theme.mode === 'dark' ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.5)', color: theme.text, borderColor: theme.border }]}
                 placeholder="일시 (예: 2026-06-15 13:00)"
                 placeholderTextColor={theme.textSecondary}
                 value={eventDate}
@@ -504,17 +533,18 @@ export default function ChatRoomScreen() {
             </View>
 
             <View style={styles.modalActions}>
-              <Pressable style={[styles.modalBtn, { backgroundColor: theme.border }]} onPress={() => setShowEventModal(false)}>
+              <Pressable style={[styles.modalBtn, { backgroundColor: theme.mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]} onPress={() => setShowEventModal(false)}>
                 <ThemedText>취소</ThemedText>
               </Pressable>
               <Pressable style={[styles.modalBtn, { backgroundColor: theme.primary }]} onPress={handleCreateEvent} disabled={submitting}>
                 <ThemedText style={{ color: '#FFFFFF', fontWeight: '700' }}>추가</ThemedText>
               </Pressable>
             </View>
-          </ThemedView>
-        </View>
+          </BlurView>
+        </BlurView>
       </Modal>
-    </ThemedView>
+      </ThemedView>
+    </View>
   );
 }
 
