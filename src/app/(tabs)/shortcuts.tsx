@@ -7,7 +7,7 @@ import { TimetableWidget } from '@/components/TimetableWidget';
 import { ExternalLink } from '@/components/external-link';
 import { ShadowCard } from '@/components/ShadowCard';
 import { useTheme } from '@/hooks/use-theme';
-import { SymbolView } from 'expo-symbols';
+import { SymbolView } from '@/components/SymbolView';
 
 export default function ShortcutsScreen() {
   const theme = useTheme();
@@ -24,12 +24,6 @@ export default function ShortcutsScreen() {
       url: 'https://neis.go.kr',
       icon: 'graduationcap.fill',
       desc: '성적표, 생활기록부, 출결 확인 서비스',
-    },
-    {
-      title: 'EBS 온라인클래스',
-      url: 'https://ebsoc.co.kr',
-      icon: 'play.tv.fill',
-      desc: '교과목 온라인 동영상 학습 콘텐츠 플랫폼',
     },
   ];
 

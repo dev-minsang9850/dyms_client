@@ -4,7 +4,7 @@ import { ThemedText } from './themed-text';
 import { ShadowCard } from './ShadowCard';
 import { Notice } from '@/context/AppContext';
 import { useTheme } from '@/hooks/use-theme';
-import { SymbolView } from 'expo-symbols';
+import { SymbolView } from './SymbolView';
 
 // Enable layout animation on Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {

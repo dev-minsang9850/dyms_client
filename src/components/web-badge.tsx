@@ -4,11 +4,12 @@ import { useColorScheme, StyleSheet } from 'react-native';
 
 import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
+import { useApp } from '@/context/AppContext';
 
 import { Spacing } from '@/constants/theme';
 
 export function WebBadge() {
-  const scheme = useColorScheme();
+  const { themeMode } = useApp();
 
   return (
     <ThemedView style={styles.container}>
@@ -17,7 +18,7 @@ export function WebBadge() {
       </ThemedText>
       <Image
         source={
-          scheme === 'dark'
+          themeMode === 'dark'
             ? require('@/assets/images/expo-badge-white.png')
             : require('@/assets/images/expo-badge.png')
         }

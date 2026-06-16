@@ -4,12 +4,12 @@ import { useRouter } from 'expo-router';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { ShadowCard } from '@/components/ShadowCard';
-import { useApp } from '@/context/AppContext';
+import { useApp, Friend } from '@/context/AppContext';
 import { useTheme } from '@/hooks/use-theme';
-import { SymbolView } from 'expo-symbols';
+import { SymbolView } from '@/components/SymbolView';
 
 export default function CreateChatScreen() {
-  const { friends, createChatRoom } = useApp();
+  const { friends, createChatRoom, user } = useApp();
   const theme = useTheme();
   const router = useRouter();
 
@@ -17,7 +17,31 @@ export default function CreateChatScreen() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [roomName, setRoomName] = useState('');
 
-  const filteredFriends = friends.filter((f) =>
+  let allList: Friend[] = [...friends];
+  if (user && !allList.some((f) => f.id === user.id)) {
+    allList = [
+      {
+        id: user.id,
+        name: `${user.name} (나)`,
+        role: user.role,
+        detail: user.role === 'teacher'
+          ? `교직원${user.position === 'head' ? ' (부장)' : user.position === 'deputy' ? ' (차장)' : ''}`
+          : (user.grade && user.class) ? `${user.grade}학년 ${user.class}반` : '학적 정보 없음',
+        status: 'online',
+        statusMessage: user.statusMessage || '',
+      },
+      ...allList,
+    ];
+  } else {
+    allList = allList.map((f) => {
+      if (f.id === user?.id) {
+        return { ...f, name: `${f.name} (나)` };
+      }
+      return f;
+    });
+  }
+
+  const filteredFriends = allList.filter((f) =>
     f.name.toLowerCase().includes(search.toLowerCase()) ||
     f.detail.toLowerCase().includes(search.toLowerCase())
   );
@@ -30,15 +54,18 @@ export default function CreateChatScreen() {
     }
   };
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (selectedIds.length === 0) return;
     
     // If it's a direct message (1 person) and name is not set, let Context default it
     const finalRoomName = selectedIds.length > 1 ? roomName || undefined : undefined;
-    const newChatId = createChatRoom(selectedIds, finalRoomName);
-    
-    // Redirect to the newly created room
-    router.replace(`/chat/${newChatId}`);
+    try {
+      const newChatId = await createChatRoom(selectedIds, finalRoomName);
+      // Redirect to the newly created room
+      router.replace(`/chat/${newChatId}`);
+    } catch (e) {
+      console.error("Failed to create chat room", e);
+    }
   };
 
   return (

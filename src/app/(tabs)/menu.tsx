@@ -1,27 +1,113 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, Platform, Pressable, TextInput, Switch, useColorScheme } from 'react-native';
+import { View, StyleSheet, ScrollView, Platform, Pressable, TextInput, Switch, Modal, ActivityIndicator, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { ShadowCard } from '@/components/ShadowCard';
 import { useApp } from '@/context/AppContext';
 import { useTheme } from '@/hooks/use-theme';
-import { SymbolView } from 'expo-symbols';
+import { SymbolView } from '@/components/SymbolView';
 
 export default function MenuScreen() {
-  const { user, logout, updateStatus } = useApp();
+  const { user, logout, updateStatus, updateProfile, themeMode, setThemeMode, clearWorkspace } = useApp();
   const theme = useTheme();
   const router = useRouter();
 
   const [statusMsg, setStatusMsg] = useState(user?.statusMessage || '');
   const [isEditing, setIsEditing] = useState(false);
 
-  const colorScheme = useColorScheme();
-
   // Switch states
-  const [darkMode, setDarkMode] = useState(colorScheme === 'dark');
   const [notifications, setNotifications] = useState(true);
   const [dndMode, setDndMode] = useState(false);
+
+  // Edit profile states
+  const [showEditProfile, setShowEditProfile] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editPassword, setEditPassword] = useState('');
+  const [editPasswordConfirm, setEditPasswordConfirm] = useState('');
+  const [editGrade, setEditGrade] = useState('');
+  const [editClass, setEditClass] = useState('');
+  const [editNumber, setEditNumber] = useState('');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  const openEditProfileModal = () => {
+    setEditName(user?.name || '');
+    setEditPhone(user?.phone || '');
+    setEditPassword('');
+    setEditPasswordConfirm('');
+    setEditGrade(user?.grade ? String(user.grade) : '');
+    setEditClass(user?.class ? String(user.class) : '');
+    setEditNumber(user?.number ? String(user.number) : '');
+    setShowEditProfile(true);
+  };
+
+  const handleSaveProfile = async () => {
+    if (!editName.trim()) {
+      Alert.alert('오류', '이름을 입력해 주세요.');
+      return;
+    }
+    const nameRegex = /^[a-zA-Z가-힣\s]+$/;
+    if (!nameRegex.test(editName.trim())) {
+      Alert.alert('오류', '이름에는 특수기호나 숫자가 포함될 수 없습니다.');
+      return;
+    }
+    if (!editPhone.trim()) {
+      Alert.alert('오류', '연락처를 입력해 주세요.');
+      return;
+    }
+    const phoneDigits = editPhone.replace(/\D/g, '');
+    if (!/^010\d{7,8}$/.test(phoneDigits)) {
+      Alert.alert('오류', '유효하지 않은 전화번호 형식입니다. 010으로 시작하는 10~11자리 숫자여야 합니다.');
+      return;
+    }
+    if (user?.role === 'student') {
+      const g = parseInt(editGrade, 10);
+      const c = parseInt(editClass, 10);
+      const n = parseInt(editNumber, 10);
+      if (isNaN(g) || g < 1 || g > 3) {
+        Alert.alert('오류', '학년은 1에서 3 사이의 숫자여야 합니다.');
+        return;
+      }
+      if (isNaN(c) || c < 1 || c > 9) {
+        Alert.alert('오류', '반은 1에서 9 사이의 숫자여야 합니다.');
+        return;
+      }
+      if (isNaN(n) || n < 1 || n > 99) {
+        Alert.alert('오류', '번호는 1에서 99 사이의 숫자여야 합니다.');
+        return;
+      }
+    }
+    if (editPassword !== '' && editPassword !== editPasswordConfirm) {
+      Alert.alert('오류', '비밀번호가 일치하지 않습니다.');
+      return;
+    }
+
+    setIsSavingProfile(true);
+    const updateData: any = {
+      name: editName.trim(),
+      phone: editPhone.trim(),
+    };
+
+    if (editPassword.trim() !== '') {
+      updateData.password = editPassword;
+    }
+
+    if (user?.role === 'student') {
+      updateData.grade = editGrade ? parseInt(editGrade, 10) : null;
+      updateData.class = editClass ? parseInt(editClass, 10) : null;
+      updateData.number = editNumber ? parseInt(editNumber, 10) : null;
+    }
+
+    const success = await updateProfile(updateData);
+    setIsSavingProfile(false);
+    if (success) {
+      Alert.alert('성공', '개인정보가 성공적으로 수정되었습니다.');
+      setShowEditProfile(false);
+    } else {
+      Alert.alert('오류', '개인정보 수정에 실패했습니다.');
+    }
+  };
 
   const handleUpdateStatus = () => {
     updateStatus(statusMsg);
@@ -52,9 +138,17 @@ export default function MenuScreen() {
                 </ThemedText>
               </View>
               <View style={styles.userInfo}>
-                <ThemedText style={styles.userName} type="subtitle">
-                  {user.name}
-                </ThemedText>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                  <ThemedText style={styles.userName} type="subtitle">
+                    {user.name}
+                  </ThemedText>
+                  <Pressable
+                    style={({ pressed }) => [styles.editProfileBtn, { borderColor: theme.primary }, pressed && styles.pressed]}
+                    onPress={openEditProfileModal}
+                  >
+                    <ThemedText style={{ color: theme.primary, fontSize: 11, fontWeight: '700' }}>개인정보 수정</ThemedText>
+                  </Pressable>
+                </View>
                 <ThemedText style={styles.userEmail} themeColor="textSecondary">
                   {user.email}
                 </ThemedText>
@@ -123,8 +217,8 @@ export default function MenuScreen() {
                 <ThemedText style={styles.settingLabelText}>다크 모드</ThemedText>
               </View>
               <Switch
-                value={darkMode}
-                onValueChange={setDarkMode}
+                value={themeMode === 'dark'}
+                onValueChange={(val) => setThemeMode(val ? 'dark' : 'light')}
                 trackColor={{ false: '#767577', true: theme.primary }}
               />
             </View>
@@ -145,7 +239,7 @@ export default function MenuScreen() {
               />
             </View>
 
-            <View style={styles.settingRow}>
+            <View style={[styles.settingRow, { borderBottomColor: theme.border }]}>
               <View style={styles.settingLabelContainer}>
                 <SymbolView
                   name={{ ios: 'minus.circle.fill', android: 'do_not_disturb', web: 'do_not_disturb' }}
@@ -165,8 +259,62 @@ export default function MenuScreen() {
                 trackColor={{ false: '#767577', true: theme.primary }}
               />
             </View>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.settingRow,
+                pressed && styles.pressed,
+              ]}
+              onPress={clearWorkspace}
+            >
+              <View style={styles.settingLabelContainer}>
+                <SymbolView
+                  name={{ ios: 'square.grid.2x2.fill', android: 'grid_view', web: 'grid' }}
+                  tintColor={theme.text}
+                  size={18}
+                />
+                <ThemedText style={styles.settingLabelText}>워크스페이스 전환</ThemedText>
+              </View>
+              <SymbolView
+                name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron-right' }}
+                tintColor={theme.textSecondary}
+                size={16}
+              />
+            </Pressable>
           </ShadowCard>
         </View>
+
+        {/* Department Head Section (Only visible to department heads) */}
+        {user?.position === 'head' && (
+          <View style={styles.settingsSection}>
+            <ThemedText style={styles.sectionTitle} type="smallBold">
+              부서 관리 메뉴
+            </ThemedText>
+            <ShadowCard style={styles.settingsCard} padding={0}>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.settingRow,
+                  pressed && styles.pressed,
+                ]}
+                onPress={() => router.push("/workspace-manage")}
+              >
+                <View style={styles.settingLabelContainer}>
+                  <SymbolView
+                    name={{ ios: 'person.2.fill', android: 'group', web: 'users' }}
+                    tintColor={theme.text}
+                    size={18}
+                  />
+                  <ThemedText style={styles.settingLabelText}>부서 부원 관리</ThemedText>
+                </View>
+                <SymbolView
+                  name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron-right' }}
+                  tintColor={theme.textSecondary}
+                  size={16}
+                />
+              </Pressable>
+            </ShadowCard>
+          </View>
+        )}
 
         {/* Admin Section (Only visible to admins) */}
         {user?.isAdmin && (
@@ -230,6 +378,164 @@ export default function MenuScreen() {
           </ThemedText>
         </View>
       </ScrollView>
+
+      {/* Modal: Edit Profile */}
+      <Modal
+        visible={showEditProfile}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowEditProfile(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <ThemedView style={[styles.modalContent, { backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1 }]}>
+            <ThemedText style={styles.modalTitle} type="subtitle">개인정보 수정</ThemedText>
+
+            <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
+              <View style={styles.formGroup}>
+                <ThemedText style={styles.inputLabel} themeColor="textSecondary">이메일 (아이디)</ThemedText>
+                <TextInput
+                  style={[
+                    styles.modalInput,
+                    { backgroundColor: theme.background + '80', color: theme.textSecondary, borderColor: theme.border },
+                  ]}
+                  value={user?.email}
+                  editable={false}
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <ThemedText style={styles.inputLabel}>이름</ThemedText>
+                <TextInput
+                  style={[
+                    styles.modalInput,
+                    { backgroundColor: theme.background, color: theme.text, borderColor: theme.border },
+                  ]}
+                  value={editName}
+                  onChangeText={(txt) => setEditName(txt.replace(/[^a-zA-Z가-힣\s]/g, ''))}
+                  placeholder="이름 입력"
+                  placeholderTextColor={theme.textSecondary}
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <ThemedText style={styles.inputLabel}>연락처</ThemedText>
+                <TextInput
+                  style={[
+                    styles.modalInput,
+                    { backgroundColor: theme.background, color: theme.text, borderColor: theme.border },
+                  ]}
+                  value={editPhone}
+                  onChangeText={(txt) => setEditPhone(txt.replace(/[^0-9-]/g, ''))}
+                  placeholder="연락처 입력 (예: 010-0000-0000)"
+                  placeholderTextColor={theme.textSecondary}
+                  keyboardType="phone-pad"
+                />
+              </View>
+
+              {user?.role === 'student' && (
+                <View style={styles.formGroup}>
+                  <ThemedText style={styles.inputLabel}>학적 정보</ThemedText>
+                  <View style={styles.rowInputs}>
+                    <View style={styles.flexInput}>
+                      <TextInput
+                        style={[
+                          styles.modalInput,
+                          { backgroundColor: theme.background, color: theme.text, borderColor: theme.border },
+                        ]}
+                        value={editGrade}
+                        onChangeText={(txt) => setEditGrade(txt.replace(/[^0-9]/g, ''))}
+                        placeholder="학년"
+                        placeholderTextColor={theme.textSecondary}
+                        keyboardType="number-pad"
+                        maxLength={1}
+                      />
+                    </View>
+                    <View style={styles.flexInput}>
+                      <TextInput
+                        style={[
+                          styles.modalInput,
+                          { backgroundColor: theme.background, color: theme.text, borderColor: theme.border },
+                        ]}
+                        value={editClass}
+                        onChangeText={(txt) => setEditClass(txt.replace(/[^0-9]/g, ''))}
+                        placeholder="반"
+                        placeholderTextColor={theme.textSecondary}
+                        keyboardType="number-pad"
+                        maxLength={2}
+                      />
+                    </View>
+                    <View style={styles.flexInput}>
+                      <TextInput
+                        style={[
+                          styles.modalInput,
+                          { backgroundColor: theme.background, color: theme.text, borderColor: theme.border },
+                        ]}
+                        value={editNumber}
+                        onChangeText={(txt) => setEditNumber(txt.replace(/[^0-9]/g, ''))}
+                        placeholder="번호"
+                        placeholderTextColor={theme.textSecondary}
+                        keyboardType="number-pad"
+                        maxLength={2}
+                      />
+                    </View>
+                  </View>
+                </View>
+              )}
+
+              <View style={styles.formGroup}>
+                <ThemedText style={styles.inputLabel}>비밀번호 변경 (선택)</ThemedText>
+                <TextInput
+                  style={[
+                    styles.modalInput,
+                    { backgroundColor: theme.background, color: theme.text, borderColor: theme.border },
+                  ]}
+                  value={editPassword}
+                  onChangeText={setEditPassword}
+                  placeholder="새 비밀번호 입력"
+                  placeholderTextColor={theme.textSecondary}
+                  secureTextEntry
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <ThemedText style={styles.inputLabel}>비밀번호 확인</ThemedText>
+                <TextInput
+                  style={[
+                    styles.modalInput,
+                    { backgroundColor: theme.background, color: theme.text, borderColor: theme.border },
+                  ]}
+                  value={editPasswordConfirm}
+                  onChangeText={setEditPasswordConfirm}
+                  placeholder="새 비밀번호 다시 입력"
+                  placeholderTextColor={theme.textSecondary}
+                  secureTextEntry
+                />
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalActions}>
+              <Pressable
+                style={[styles.modalBtn, { backgroundColor: theme.border }]}
+                onPress={() => setShowEditProfile(false)}
+                disabled={isSavingProfile}
+              >
+                <ThemedText style={{ fontWeight: '700' }}>취소</ThemedText>
+              </Pressable>
+              <Pressable
+                style={[styles.modalBtn, { backgroundColor: theme.primary }]}
+                onPress={handleSaveProfile}
+                disabled={isSavingProfile}
+              >
+                {isSavingProfile ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <ThemedText style={{ color: '#FFFFFF', fontWeight: '700' }}>저장</ThemedText>
+                )}
+              </Pressable>
+            </View>
+          </ThemedView>
+        </View>
+      </Modal>
     </ThemedView>
   );
 }
@@ -379,5 +685,73 @@ const styles = StyleSheet.create({
   },
   copyrightText: {
     fontSize: 10,
+  },
+  editProfileBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1.5,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  modalContent: {
+    width: "100%",
+    maxWidth: 440,
+    borderRadius: 24,
+    padding: 24,
+    gap: 16,
+    ...Platform.select({
+      web: {
+        backdropFilter: "blur(20px)",
+      }
+    })
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  modalScroll: {
+    maxHeight: 400,
+  },
+  formGroup: {
+    gap: 6,
+    marginBottom: 12,
+  },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  modalInput: {
+    height: 44,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    fontSize: 14,
+  },
+  rowInputs: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  flexInput: {
+    flex: 1,
+  },
+  modalActions: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 8,
+  },
+  modalBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
   },
 });

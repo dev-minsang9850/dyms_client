@@ -1,23 +1,75 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Pressable, ScrollView, ActivityIndicator } from 'react-native';
 import { ThemedText } from './themed-text';
 import { ShadowCard } from './ShadowCard';
 import { useApp } from '@/context/AppContext';
 import { useTheme } from '@/hooks/use-theme';
+import { api } from '@/lib/api';
 
 export function TimetableWidget() {
-  const { timetable } = useApp();
+  const { timetable: globalTimetable, user } = useApp();
   const theme = useTheme();
+  
+  const [timetable, setTimetable] = useState<{ [key: string]: string[] } | null>(null);
+  const [selectedGrade, setSelectedGrade] = useState<number>(user?.grade || 2);
+  const [selectedClass, setSelectedClass] = useState<number>(user?.class || 3);
+  const [loading, setLoading] = useState(false);
+
   const [currentPeriod, setCurrentPeriod] = useState<number>(-2); // -2: school closed, -1: lunch, 0-6: periods
+  const [currentDayIndex, setCurrentDayIndex] = useState<number>(-1); // 0: Mon, 1: Tue, ... 4: Fri
+
+  const days = ['월', '화', '수', '목', '금'];
+  const periods = [1, 2, 3, 4, 5, 6, 7];
 
   useEffect(() => {
-    const checkPeriod = () => {
+    if (globalTimetable) {
+      setTimetable(globalTimetable);
+    }
+  }, [globalTimetable]);
+
+  const loadTimetable = async (grade: number, classVal: number) => {
+    setLoading(true);
+    try {
+      const res = await api.get('/school/timetable', {
+        params: {
+          grade,
+          class: classVal
+        }
+      });
+      setTimetable(res.data);
+    } catch (e) {
+      console.warn('Failed to load timetable', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGradeChange = (grade: number) => {
+    setSelectedGrade(grade);
+    loadTimetable(grade, selectedClass);
+  };
+
+  const handleClassChange = (classVal: number) => {
+    setSelectedClass(classVal);
+    loadTimetable(selectedGrade, classVal);
+  };
+
+  useEffect(() => {
+    const checkPeriodAndDay = () => {
       const now = new Date();
+      const day = now.getDay(); // 0: Sun, 1: Mon, ... 6: Sat
+      
+      if (day >= 1 && day <= 5) {
+        setCurrentDayIndex(day - 1);
+      } else {
+        setCurrentDayIndex(-1);
+      }
+
       const hours = now.getHours();
       const minutes = now.getMinutes();
       const timeInMinutes = hours * 60 + minutes;
 
-      // Class times defined in minutes from midnight
+      // Class times in minutes from midnight
       const p1Start = 9 * 60; // 09:00
       const p1End = 9 * 60 + 50; // 09:50
       const p2Start = 10 * 60;
@@ -54,65 +106,201 @@ export function TimetableWidget() {
       } else if (timeInMinutes >= p7Start && timeInMinutes <= p7End) {
         setCurrentPeriod(6);
       } else {
-        setCurrentPeriod(-2); // Outside school hours
+        setCurrentPeriod(-2);
       }
     };
 
-    checkPeriod();
-    const interval = setInterval(checkPeriod, 60000); // Update every minute
+    checkPeriodAndDay();
+    const interval = setInterval(checkPeriodAndDay, 60000);
     return () => clearInterval(interval);
   }, []);
+
+  const renderCell = (subject: string, dayIdx: number, periodIdx: number) => {
+    const isCurrent = dayIdx === currentDayIndex && periodIdx === currentPeriod;
+    return (
+      <View
+        key={dayIdx}
+        style={[
+          styles.cell,
+          { borderColor: theme.border, backgroundColor: theme.background },
+          isCurrent && [
+            styles.activeCell,
+            { borderColor: theme.primary, backgroundColor: theme.primaryLight },
+          ],
+        ]}
+      >
+        <ThemedText
+          style={[
+            styles.cellText,
+            isCurrent && { color: theme.primary, fontWeight: '700' },
+          ]}
+          numberOfLines={1}
+          type="small"
+        >
+          {subject || '-'}
+        </ThemedText>
+      </View>
+    );
+  };
 
   return (
     <ShadowCard style={styles.card}>
       <View style={styles.header}>
         <ThemedText type="smallBold" themeColor="primary">
-          오늘의 학급 시간표
+          주간 학급 시간표 (5x7)
         </ThemedText>
         <ThemedText type="small" themeColor="textSecondary">
-          2학년 3반 기준
+          {selectedGrade}학년 {selectedClass}반 기준
         </ThemedText>
       </View>
 
       <View style={[styles.divider, { backgroundColor: theme.border }]} />
 
-      {currentPeriod === -1 && (
+      {/* 학년 선택 */}
+      <View style={styles.selectorRow}>
+        <ThemedText style={styles.selectorLabel} type="smallBold" themeColor="textSecondary">학년</ThemedText>
+        <View style={styles.gradeTabs}>
+          {[1, 2, 3].map((g) => {
+            const isActive = selectedGrade === g;
+            return (
+              <Pressable
+                key={g}
+                style={[
+                  styles.gradeTab,
+                  { borderColor: theme.border, backgroundColor: theme.card },
+                  isActive && { backgroundColor: theme.primary, borderColor: theme.primary },
+                ]}
+                onPress={() => handleGradeChange(g)}
+              >
+                <ThemedText
+                  style={[
+                    styles.gradeTabText,
+                    isActive && { color: '#FFFFFF', fontWeight: '700' },
+                  ]}
+                  type="small"
+                >
+                  {g}학년
+                </ThemedText>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* 반 선택 */}
+      <View style={styles.selectorRow}>
+        <ThemedText style={styles.selectorLabel} type="smallBold" themeColor="textSecondary">반</ThemedText>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.classScroll}
+        >
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((c) => {
+            const isActive = selectedClass === c;
+            return (
+              <Pressable
+                key={c}
+                style={[
+                  styles.classTab,
+                  { borderColor: theme.border, backgroundColor: theme.card },
+                  isActive && { backgroundColor: theme.primary, borderColor: theme.primary },
+                ]}
+                onPress={() => handleClassChange(c)}
+              >
+                <ThemedText
+                  style={[
+                    styles.classTabText,
+                    isActive && { color: '#FFFFFF', fontWeight: '700' },
+                  ]}
+                  type="small"
+                >
+                  {c}반
+                </ThemedText>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </View>
+
+      <View style={[styles.divider, { backgroundColor: theme.border, marginTop: 6 }]} />
+
+      {currentPeriod === -1 && currentDayIndex !== -1 && (
         <View style={[styles.activeBanner, { backgroundColor: '#FF9500' }]}>
           <ThemedText style={styles.activeBannerText}>지금은 맛있는 점심 시간입니다! 😋</ThemedText>
         </View>
       )}
 
-      <View style={styles.listContainer}>
-        {timetable.map((period, index) => {
-          const isActive = index === currentPeriod;
-          return (
-            <View
-              key={index}
-              style={[
-                styles.periodRow,
-                { backgroundColor: theme.background },
-                isActive && [styles.activeRow, { borderColor: theme.primary }],
-              ]}
-            >
-              <ThemedText
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator color={theme.primary} size="large" />
+          <ThemedText themeColor="textSecondary" style={styles.loadingText}>
+            시간표를 불러오는 중...
+          </ThemedText>
+        </View>
+      ) : !timetable ? (
+        <View style={styles.loadingContainer}>
+          <ThemedText themeColor="textSecondary" style={styles.loadingText}>
+            시간표가 존재하지 않습니다.
+          </ThemedText>
+        </View>
+      ) : (
+        <View style={styles.gridContainer}>
+          {/* Header Row */}
+          <View style={styles.gridHeader}>
+            <View style={[styles.headerCell, { borderColor: theme.border, backgroundColor: theme.card }]}>
+              <ThemedText type="smallBold" style={styles.headerText}>교시</ThemedText>
+            </View>
+            {days.map((d, idx) => (
+              <View
+                key={d}
                 style={[
-                  styles.periodText,
-                  isActive && { color: theme.primary, fontWeight: '700' },
+                  styles.headerCell,
+                  { borderColor: theme.border, backgroundColor: theme.card },
+                  idx === currentDayIndex && { backgroundColor: theme.primaryLight },
                 ]}
               >
-                {period}
-              </ThemedText>
+                <ThemedText
+                  type="smallBold"
+                  style={[
+                    styles.headerText,
+                    idx === currentDayIndex && { color: theme.primary },
+                  ]}
+                >
+                  {d}
+                </ThemedText>
+              </View>
+            ))}
+          </View>
 
-              {isActive && (
-                <View style={[styles.activeBadge, { backgroundColor: theme.primary }]}>
-                  <View style={styles.pulseDot} />
-                  <ThemedText style={styles.activeBadgeText}>진행중</ThemedText>
-                </View>
-              )}
+          {/* Period Rows */}
+          {periods.map((pNum, pIdx) => (
+            <View key={pNum} style={styles.gridRow}>
+              <View
+                style={[
+                  styles.periodCell,
+                  { borderColor: theme.border, backgroundColor: theme.card },
+                  pIdx === currentPeriod && currentDayIndex !== -1 && { backgroundColor: theme.primaryLight },
+                ]}
+              >
+                <ThemedText
+                  type="smallBold"
+                  style={[
+                    styles.periodNumberText,
+                    pIdx === currentPeriod && currentDayIndex !== -1 && { color: theme.primary },
+                  ]}
+                >
+                  {pNum}
+                </ThemedText>
+              </View>
+              {days.map((day, dIdx) => {
+                const daySubjects = timetable[day] || [];
+                const subject = daySubjects[pIdx] || '-';
+                return renderCell(subject, dIdx, pIdx);
+              })}
             </View>
-          );
-        })}
-      </View>
+          ))}
+        </View>
+      )}
     </ShadowCard>
   );
 }
@@ -142,43 +330,96 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 14,
   },
-  listContainer: {
+  loadingContainer: {
+    height: 150,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 14,
+  },
+  gridContainer: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.05)',
+  },
+  gridHeader: {
+    flexDirection: 'row',
+  },
+  gridRow: {
+    flexDirection: 'row',
+  },
+  headerCell: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    borderWidth: 0.5,
+  },
+  headerText: {
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  periodCell: {
+    width: 45,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderWidth: 0.5,
+  },
+  periodNumberText: {
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  cell: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 2,
+    borderWidth: 0.5,
+  },
+  activeCell: {
+    borderWidth: 1.2,
+  },
+  cellText: {
+    fontSize: 11,
+    textAlign: 'center',
+  },
+  selectorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  selectorLabel: {
+    width: 40,
+    fontSize: 13,
+  },
+  gradeTabs: {
+    flexDirection: 'row',
     gap: 8,
   },
-  periodRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'transparent',
-  },
-  activeRow: {
-    borderWidth: 1.5,
-    backgroundColor: '#E5F1FF',
-  },
-  periodText: {
-    fontSize: 15,
-  },
-  activeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingVertical: 2,
-    paddingHorizontal: 8,
+  gradeTab: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
     borderRadius: 8,
+    borderWidth: 1,
   },
-  activeBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '700',
+  gradeTabText: {
+    fontSize: 12,
   },
-  pulseDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#FFFFFF',
+  classScroll: {
+    gap: 6,
+    paddingRight: 16,
+  },
+  classTab: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  classTabText: {
+    fontSize: 12,
   },
 });

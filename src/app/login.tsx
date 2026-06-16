@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -21,20 +21,78 @@ export default function LoginScreen() {
   const router = useRouter();
   const theme = useTheme();
 
-  const [email, setEmail] = useState("deodux@gmail.com");
-  const [password, setPassword] = useState("123456");
+  const defaultStudentEmail = "deodux@gmail.com";
+  const defaultTeacherEmail = "teacher.lee@dyhs.kr";
+  const defaultPassword = "123456";
+
+  const [email, setEmail] = useState(defaultStudentEmail);
+  const [password, setPassword] = useState(defaultPassword);
   const [loading, setLoading] = useState(false);
   const [roleMode, setRoleMode] = useState<"student" | "teacher">("student");
+  const [errorMessage, setErrorMessage] = useState("");
+
+  // PWA installation states
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+
+    const handler = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstallBanner(true);
+    };
+
+    window.addEventListener("beforeinstallprompt", handler);
+
+    if (window.matchMedia("(display-mode: standalone)").matches) {
+      setShowInstallBanner(false);
+    }
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handler);
+    };
+  }, []);
+
+  const handleInstallPWA = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    console.log(`PWA install outcome: ${outcome}`);
+    setDeferredPrompt(null);
+    setShowInstallBanner(false);
+  };
+
+  const handleEmailFocus = () => {
+    setErrorMessage("");
+    if (email === defaultStudentEmail || email === defaultTeacherEmail) {
+      setEmail("");
+    }
+  };
+
+  const handlePasswordFocus = () => {
+    setErrorMessage("");
+    if (password === defaultPassword) {
+      setPassword("");
+    }
+  };
 
   const handleLogin = async () => {
-    if (!email || !password) return;
+    if (!email || !password) {
+      setErrorMessage("이메일과 비밀번호를 모두 입력해 주세요.");
+      return;
+    }
     setLoading(true);
+    setErrorMessage("");
     try {
       const success = await login(email, password);
-      if (success) {
+      if (!success) {
+        setErrorMessage("이메일 또는 비밀번호를 확인해 주세요.");
       }
     } catch (err) {
       console.error(err);
+      setErrorMessage("로그인 도중 오류가 발생했습니다.");
     } finally {
       setLoading(false);
     }
@@ -42,6 +100,35 @@ export default function LoginScreen() {
 
   return (
     <ThemedView style={styles.container}>
+      {showInstallBanner && (
+        <ShadowCard style={styles.installBanner} padding={12}>
+          <View style={styles.installBannerRow}>
+            <View style={{ flex: 1, marginRight: 8 }}>
+              <ThemedText style={{ fontWeight: '700', fontSize: 14 }}>덕영고 메신저 DYMS 앱 설치</ThemedText>
+              <ThemedText style={{ fontSize: 11 }} themeColor="textSecondary">
+                바탕화면에 설치하여 더욱 편리하게 사용하세요.
+              </ThemedText>
+            </View>
+            <Pressable
+              style={({ pressed }) => [
+                styles.installButton,
+                { backgroundColor: theme.primary },
+                pressed && styles.pressed,
+              ]}
+              onPress={handleInstallPWA}
+            >
+              <ThemedText style={styles.installButtonText}>설치</ThemedText>
+            </Pressable>
+            <Pressable
+              style={{ padding: 4, marginLeft: 8 }}
+              onPress={() => setShowInstallBanner(false)}
+            >
+              <ThemedText themeColor="textSecondary" style={{ fontSize: 14, fontWeight: '700' }}>✕</ThemedText>
+            </Pressable>
+          </View>
+        </ShadowCard>
+      )}
+
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
@@ -75,7 +162,9 @@ export default function LoginScreen() {
               ]}
               onPress={() => {
                 setRoleMode("student");
-                setEmail("deodux@gmail.com");
+                setErrorMessage("");
+                setEmail(defaultStudentEmail);
+                setPassword(defaultPassword);
               }}
             >
               <ThemedText
@@ -100,7 +189,9 @@ export default function LoginScreen() {
               ]}
               onPress={() => {
                 setRoleMode("teacher");
-                setEmail("teacher.lee@dy.hs.kr");
+                setErrorMessage("");
+                setEmail(defaultTeacherEmail);
+                setPassword(defaultPassword);
               }}
             >
               <ThemedText
@@ -135,6 +226,7 @@ export default function LoginScreen() {
                 placeholderTextColor={theme.textSecondary}
                 value={email}
                 onChangeText={setEmail}
+                onFocus={handleEmailFocus}
                 keyboardType="email-address"
                 autoCapitalize="none"
               />
@@ -157,10 +249,17 @@ export default function LoginScreen() {
                 placeholderTextColor={theme.textSecondary}
                 value={password}
                 onChangeText={setPassword}
+                onFocus={handlePasswordFocus}
                 secureTextEntry
                 autoCapitalize="none"
               />
             </View>
+
+            {errorMessage ? (
+              <ThemedText style={styles.errorText}>
+                {errorMessage}
+              </ThemedText>
+            ) : null}
 
             <View style={styles.linksRow}>
               <Pressable onPress={() => router.push("/signup")}>
@@ -168,7 +267,7 @@ export default function LoginScreen() {
                   회원가입
                 </ThemedText>
               </Pressable>
-              <Pressable>
+              <Pressable onPress={() => router.push("/find-auth")}>
                 <ThemedText
                   style={styles.linkText}
                   type="small"
@@ -316,5 +415,44 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.85,
+  },
+  errorText: {
+    color: "#FF3B30",
+    fontSize: 13,
+    fontWeight: "600",
+    marginBottom: 12,
+    textAlign: "center",
+  },
+  installBanner: {
+    position: 'absolute',
+    top: 20,
+    left: 20,
+    right: 20,
+    zIndex: 999,
+    backgroundColor: 'rgba(255, 255, 255, 0.75)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    ...Platform.select({
+      web: {
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+      } as any
+    })
+  },
+  installBannerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  installButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  installButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
   },
 });

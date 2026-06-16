@@ -21,7 +21,18 @@
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "pwa": {
+        "manifest": {
+          "name": "덕영고 메신저 DYMS",
+          "short_name": "DYMS",
+          "description": "덕영고등학교 교내 메신저 서비스",
+          "background_color": "#FFFFFF",
+          "theme_color": "#208AEF",
+          "display": "standalone",
+          "start_url": "/"
+        }
+      }
     },
     "plugins": [
       "expo-router",

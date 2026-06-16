@@ -6,10 +6,10 @@ import { ThemedView } from '@/components/themed-view';
 import { ShadowCard } from '@/components/ShadowCard';
 import { useApp, Chat } from '@/context/AppContext';
 import { useTheme } from '@/hooks/use-theme';
-import { SymbolView } from 'expo-symbols';
+import { SymbolView } from '@/components/SymbolView';
 
 export default function ChatsScreen() {
-  const { chats, friends } = useApp();
+  const { chats, friends, user, selectedWorkspace } = useApp();
   const theme = useTheme();
   const router = useRouter();
 
@@ -21,11 +21,20 @@ export default function ChatsScreen() {
     router.push('/chat/create');
   };
 
+  const getChatDisplayName = (c: Chat) => {
+    if (c.type === 'direct') {
+      const friendId = c.members ? c.members.find((mId) => mId !== user?.id) : null;
+      const friend = friendId ? friends.find((f) => f.id === friendId) : null;
+      return friend ? friend.name : (c.name || '사용자');
+    }
+    return c.name;
+  };
+
   const renderChatAvatar = (chat: Chat) => {
     if (chat.type === 'direct') {
-      const friendId = chat.members[0];
-      const friend = friends.find((f) => f.id === friendId);
-      const name = friend ? friend.name : chat.name;
+      const friendId = chat.members ? chat.members.find((mId) => mId !== user?.id) : null;
+      const friend = friendId ? friends.find((f) => f.id === friendId) : null;
+      const name = friend?.name || chat.name || '사용자';
       const isTeacher = friend?.role === 'teacher';
 
       return (
@@ -37,23 +46,31 @@ export default function ChatsScreen() {
       );
     } else {
       // Group avatar cluster
-      const firstTwoMembers = chat.members.slice(0, 2).map((mId) => friends.find((f) => f.id === mId));
+      const firstTwoMembers = chat.members 
+        ? chat.members.slice(0, 2).map((mId) => friends.find((f) => f.id === mId))
+        : [];
+      const name1 = firstTwoMembers[0]?.name || 'G';
+      const name2 = firstTwoMembers[1]?.name || 'P';
       return (
         <View style={styles.groupAvatarContainer}>
           <View style={[styles.groupAvatar, styles.avatarOne, { backgroundColor: theme.primaryLight }]}>
             <ThemedText style={[styles.groupAvatarText, { color: theme.primary }]} type="code">
-              {firstTwoMembers[0]?.name.slice(-1) || 'G'}
+              {name1.slice(-1)}
             </ThemedText>
           </View>
           <View style={[styles.groupAvatar, styles.avatarTwo, { backgroundColor: theme.border }]}>
             <ThemedText style={styles.groupAvatarText} type="code">
-              {firstTwoMembers[1]?.name.slice(-1) || 'P'}
+              {name2.slice(-1)}
             </ThemedText>
           </View>
         </View>
       );
     }
   };
+
+  const filteredChats = chats.filter((c) =>
+    !selectedWorkspace || (c.workspace && c.workspace.toLowerCase() === selectedWorkspace.name.toLowerCase())
+  );
 
   return (
     <ThemedView style={styles.container}>
@@ -65,7 +82,7 @@ export default function ChatsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {chats.length === 0 ? (
+        {filteredChats.length === 0 ? (
           <View style={styles.emptyContainer}>
             <SymbolView
               name={{ ios: 'bubble.left.and.bubble.right', android: 'chat_bubble_outline', web: 'message-square' }}
@@ -78,7 +95,7 @@ export default function ChatsScreen() {
           </View>
         ) : (
           <View style={styles.list}>
-            {chats.map((chat) => (
+            {filteredChats.map((chat) => (
               <Pressable
                 key={chat.id}
                 style={({ pressed }) => pressed && styles.pressed}
@@ -91,7 +108,7 @@ export default function ChatsScreen() {
                     <View style={styles.chatDetails}>
                       <View style={styles.chatHeaderRow}>
                         <ThemedText style={styles.chatName} type="smallBold" numberOfLines={1}>
-                          {chat.name}
+                          {getChatDisplayName(chat)}
                         </ThemedText>
                         <ThemedText style={styles.timeText} themeColor="textSecondary">
                           {chat.lastMessageTime}

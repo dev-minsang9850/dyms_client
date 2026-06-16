@@ -7,22 +7,26 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { DymsLogo } from "@/components/DymsLogo";
 import { ShadowCard } from "@/components/ShadowCard";
 import { useApp } from "@/context/AppContext";
 import { useTheme } from "@/hooks/use-theme";
-import { SymbolView } from "expo-symbols";
+import { SymbolView } from "@/components/SymbolView";
 
 export default function SignUpScreen() {
   const { registerUser } = useApp();
   const router = useRouter();
+  const params = useLocalSearchParams<{ role?: "student" | "teacher" }>();
   const theme = useTheme();
 
-  const [step, setStep] = useState(1);
+  const [role, setRole] = useState<"student" | "teacher">(params.role || "student");
+  const [step, setStep] = useState(params.role ? 2 : 1);
   const [agreed, setAgreed] = useState(false);
 
   // Form states
@@ -31,34 +35,90 @@ export default function SignUpScreen() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [role, setRole] = useState<"student" | "teacher">("student");
+  const [grade, setGrade] = useState("");
+  const [classVal, setClassVal] = useState("");
+  const [number, setNumber] = useState("");
 
-  const handleNextStep = () => {
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleNextStep = async () => {
     if (step === 1) {
-      if (!agreed) return;
       setStep(2);
     } else if (step === 2) {
-      if (!email || !password || !confirmPassword || !name || !phone) return;
-      if (password !== confirmPassword) {
-        alert("비밀번호가 일치하지 않습니다.");
+      if (!agreed) return;
+      setStep(3);
+    } else if (step === 3) {
+      if (!email || !password || !confirmPassword || !name || !phone) {
+        Alert.alert("입력 오류", "필수 입력 정보를 모두 기입해 주세요.");
         return;
       }
-      setStep(3);
+      const nameRegex = /^[a-zA-Z가-힣\s]+$/;
+      if (!nameRegex.test(name.trim())) {
+        Alert.alert("입력 오류", "이름에는 특수기호나 숫자가 포함될 수 없습니다.");
+        return;
+      }
+      const phoneDigits = phone.replace(/\D/g, '');
+      if (!/^010\d{7,8}$/.test(phoneDigits)) {
+        Alert.alert("입력 오류", "유효하지 않은 전화번호 형식입니다. 010으로 시작하는 10~11자리 숫자여야 합니다.");
+        return;
+      }
+      if (role === "student" && (!grade || !classVal || !number)) {
+        Alert.alert("입력 오류", "학년, 반, 번호를 모두 입력해 주세요.");
+        return;
+      }
+      if (role === "student") {
+        const g = parseInt(grade, 10);
+        const c = parseInt(classVal, 10);
+        const n = parseInt(number, 10);
+        if (isNaN(g) || g < 1 || g > 3) {
+          Alert.alert("입력 오류", "학년은 1에서 3 사이의 숫자만 가능합니다.");
+          return;
+        }
+        if (isNaN(c) || c < 1 || c > 9) {
+          Alert.alert("입력 오류", "반은 1에서 9 사이의 숫자만 가능합니다.");
+          return;
+        }
+        if (isNaN(n) || n < 1 || n > 99) {
+          Alert.alert("입력 오류", "번호는 1에서 99 사이의 숫자만 가능합니다.");
+          return;
+        }
+      }
+      if (password !== confirmPassword) {
+        Alert.alert("오류", "비밀번호가 일치하지 않습니다.");
+        return;
+      }
+
+      setSubmitting(true);
+      const ok = await registerUser({
+        email,
+        password,
+        name,
+        phone,
+        role,
+        grade: role === "student" ? parseInt(grade, 10) : undefined,
+        class: role === "student" ? parseInt(classVal, 10) : undefined,
+        number: role === "student" ? parseInt(number, 10) : undefined,
+      });
+      setSubmitting(false);
+
+      if (ok) {
+        setStep(4);
+      } else {
+        Alert.alert("오류", "회원가입 신청에 실패했습니다. 이메일 중복 등을 확인해 주세요.");
+      }
     }
   };
 
-  const handleFinish = async () => {
-    const ok = await registerUser({
-      email,
-      password,
-      name,
-      phone,
-      role,
-    });
-
-    if (ok) {
-      router.replace("/(tabs)");
+  const handlePrevStep = () => {
+    if (step === 2 && params.role) {
+      router.back();
+    } else if (step > 1) {
+      setStep(step - 1);
     }
+  };
+
+  const handleFinish = () => {
+    router.replace("/login");
   };
 
   return (
@@ -78,7 +138,79 @@ export default function SignUpScreen() {
           {step === 1 && (
             <View style={styles.stepContainer}>
               <ThemedText style={styles.title} type="subtitle">
-                Register
+                회원가입 유형 선택
+              </ThemedText>
+              
+              <View style={styles.choiceRow}>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.choiceCard,
+                    { backgroundColor: theme.card, borderColor: theme.border },
+                    role === "student" && { borderColor: theme.primary, borderWidth: 1.5 },
+                    pressed && styles.pressed,
+                  ]}
+                  onPress={() => {
+                    setRole("student");
+                    setStep(2);
+                  }}
+                >
+                  <View style={[styles.choiceIconWrapper, { backgroundColor: theme.primaryLight }]}>
+                    <SymbolView
+                      name={{
+                        ios: "school.fill",
+                        android: "school",
+                        web: "school",
+                      }}
+                      tintColor={theme.primary}
+                      size={36}
+                    />
+                  </View>
+                  <ThemedText style={styles.choiceTitle} type="default">
+                    학생 회원가입
+                  </ThemedText>
+                  <ThemedText style={styles.choiceDesc} type="small" themeColor="textSecondary">
+                    덕영고 학생 계정으로 가입하여 시간표 및 급식 확인, 채팅 기능을 이용합니다.
+                  </ThemedText>
+                </Pressable>
+
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.choiceCard,
+                    { backgroundColor: theme.card, borderColor: theme.border },
+                    role === "teacher" && { borderColor: theme.primary, borderWidth: 1.5 },
+                    pressed && styles.pressed,
+                  ]}
+                  onPress={() => {
+                    setRole("teacher");
+                    setStep(2);
+                  }}
+                >
+                  <View style={[styles.choiceIconWrapper, { backgroundColor: theme.primaryLight }]}>
+                    <SymbolView
+                      name={{
+                        ios: "person.text.rectangle.fill",
+                        android: "contact_page",
+                        web: "person",
+                      }}
+                      tintColor={theme.primary}
+                      size={36}
+                    />
+                  </View>
+                  <ThemedText style={styles.choiceTitle} type="default">
+                    교직원 회원가입
+                  </ThemedText>
+                  <ThemedText style={styles.choiceDesc} type="small" themeColor="textSecondary">
+                    교직원용 계정으로 가입하여 공지사항 작성 및 학생 관리 기능을 지원합니다.
+                  </ThemedText>
+                </Pressable>
+              </View>
+            </View>
+          )}
+
+          {step === 2 && (
+            <View style={styles.stepContainer}>
+              <ThemedText style={styles.title} type="subtitle">
+                이용약관 동의
               </ThemedText>
 
               <ShadowCard style={styles.card} padding={16}>
@@ -131,79 +263,41 @@ export default function SignUpScreen() {
                 </Pressable>
               </ShadowCard>
 
-              <Pressable
-                style={({ pressed }) => [
-                  styles.button,
-                  agreed
-                    ? { backgroundColor: theme.primary }
-                    : styles.buttonDisabled,
-                  pressed && agreed && styles.pressed,
-                ]}
-                onPress={handleNextStep}
-                disabled={!agreed}
-              >
-                <ThemedText style={styles.buttonText} type="default">
-                  다음
-                </ThemedText>
-              </Pressable>
-            </View>
-          )}
-
-          {step === 2 && (
-            <View style={styles.stepContainer}>
-              <ThemedText style={styles.title} type="subtitle">
-                Register
-              </ThemedText>
-
-              {/* Role selector tabs */}
-              <View
-                style={[styles.roleTabs, { backgroundColor: theme.border }]}
-              >
+              <View style={styles.buttonRow}>
                 <Pressable
-                  style={[
-                    styles.roleTab,
-                    role === "student" && [
-                      styles.activeTab,
-                      { backgroundColor: theme.card },
-                    ],
+                  style={({ pressed }) => [
+                    styles.prevButton,
+                    { borderColor: theme.border, backgroundColor: theme.card },
+                    pressed && styles.pressed,
                   ]}
-                  onPress={() => setRole("student")}
+                  onPress={handlePrevStep}
                 >
-                  <ThemedText
-                    style={[
-                      styles.roleTabText,
-                      role === "student" && {
-                        color: theme.primary,
-                        fontWeight: "700",
-                      },
-                    ]}
-                  >
-                    학생
-                  </ThemedText>
+                  <ThemedText type="default" style={{ fontWeight: '700' }} themeColor="textSecondary">이전</ThemedText>
                 </Pressable>
                 <Pressable
-                  style={[
-                    styles.roleTab,
-                    role === "teacher" && [
-                      styles.activeTab,
-                      { backgroundColor: theme.card },
-                    ],
+                  style={({ pressed }) => [
+                    styles.nextButton,
+                    agreed
+                      ? { backgroundColor: theme.primary }
+                      : styles.buttonDisabled,
+                    pressed && agreed && styles.pressed,
                   ]}
-                  onPress={() => setRole("teacher")}
+                  onPress={handleNextStep}
+                  disabled={!agreed}
                 >
-                  <ThemedText
-                    style={[
-                      styles.roleTabText,
-                      role === "teacher" && {
-                        color: theme.primary,
-                        fontWeight: "700",
-                      },
-                    ]}
-                  >
-                    교직원
+                  <ThemedText style={styles.buttonText} type="default">
+                    다음
                   </ThemedText>
                 </Pressable>
               </View>
+            </View>
+          )}
+
+          {step === 3 && (
+            <View style={styles.stepContainer}>
+              <ThemedText style={styles.title} type="subtitle">
+                {role === "student" ? "학생 정보 입력" : "교직원 정보 입력"}
+              </ThemedText>
 
               <ShadowCard style={styles.card} padding={20}>
                 <View style={styles.inputGroup}>
@@ -290,6 +384,71 @@ export default function SignUpScreen() {
                   />
                 </View>
 
+                {role === "student" && (
+                  <View style={{ flexDirection: "row", gap: 10, marginBottom: 16 }}>
+                    <View style={{ flex: 1 }}>
+                      <ThemedText style={styles.inputLabel} type="smallBold">
+                        학년
+                      </ThemedText>
+                      <TextInput
+                        style={[
+                          styles.input,
+                          {
+                            backgroundColor: theme.background,
+                            color: theme.text,
+                            borderColor: theme.border,
+                          },
+                        ]}
+                        placeholder="학년"
+                        placeholderTextColor={theme.textSecondary}
+                        value={grade}
+                        onChangeText={(txt) => setGrade(txt.replace(/[^0-9]/g, ''))}
+                        keyboardType="number-pad"
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <ThemedText style={styles.inputLabel} type="smallBold">
+                        반
+                      </ThemedText>
+                      <TextInput
+                        style={[
+                          styles.input,
+                          {
+                            backgroundColor: theme.background,
+                            color: theme.text,
+                            borderColor: theme.border,
+                          },
+                        ]}
+                        placeholder="반"
+                        placeholderTextColor={theme.textSecondary}
+                        value={classVal}
+                        onChangeText={(txt) => setClassVal(txt.replace(/[^0-9]/g, ''))}
+                        keyboardType="number-pad"
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <ThemedText style={styles.inputLabel} type="smallBold">
+                        번호
+                      </ThemedText>
+                      <TextInput
+                        style={[
+                          styles.input,
+                          {
+                            backgroundColor: theme.background,
+                            color: theme.text,
+                            borderColor: theme.border,
+                          },
+                        ]}
+                        placeholder="번호"
+                        placeholderTextColor={theme.textSecondary}
+                        value={number}
+                        onChangeText={(txt) => setNumber(txt.replace(/[^0-9]/g, ''))}
+                        keyboardType="number-pad"
+                      />
+                    </View>
+                  </View>
+                )}
+
                 <View style={styles.inputGroup}>
                   <ThemedText style={styles.inputLabel} type="smallBold">
                     전화번호
@@ -306,28 +465,46 @@ export default function SignUpScreen() {
                     placeholder="010-0000-0000"
                     placeholderTextColor={theme.textSecondary}
                     value={phone}
-                    onChangeText={setPhone}
+                    onChangeText={(txt) => setPhone(txt.replace(/[^0-9-]/g, ''))}
                     keyboardType="phone-pad"
                   />
                 </View>
               </ShadowCard>
 
-              <Pressable
-                style={({ pressed }) => [
-                  styles.button,
-                  { backgroundColor: theme.primary },
-                  pressed && styles.pressed,
-                ]}
-                onPress={handleNextStep}
-              >
-                <ThemedText style={styles.buttonText} type="default">
-                  다음
-                </ThemedText>
-              </Pressable>
+              <View style={styles.buttonRow}>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.prevButton,
+                    { borderColor: theme.border, backgroundColor: theme.card },
+                    pressed && styles.pressed,
+                  ]}
+                  onPress={handlePrevStep}
+                  disabled={submitting}
+                >
+                  <ThemedText type="default" style={{ fontWeight: '700' }} themeColor="textSecondary">이전</ThemedText>
+                </Pressable>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.nextButton,
+                    { backgroundColor: theme.primary },
+                    pressed && !submitting && styles.pressed,
+                  ]}
+                  onPress={handleNextStep}
+                  disabled={submitting}
+                >
+                  {submitting ? (
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                  ) : (
+                    <ThemedText style={styles.buttonText} type="default">
+                      가입 완료
+                    </ThemedText>
+                  )}
+                </Pressable>
+              </View>
             </View>
           )}
 
-          {step === 3 && (
+          {step === 4 && (
             <View style={styles.stepContainer}>
               <ShadowCard
                 style={[styles.card, styles.successCard]}
@@ -353,10 +530,10 @@ export default function SignUpScreen() {
                   환영합니다!
                 </ThemedText>
                 <ThemedText
-                  style={styles.successSubtitle}
+                  style={[styles.successSubtitle, { textAlign: 'center', lineHeight: 22 }]}
                   themeColor="textSecondary"
                 >
-                  회원가입이 완료되었어요!
+                  회원가입 신청이 완료되었습니다!{"\n"}관리자의 승인 후 로그인이 가능합니다.
                 </ThemedText>
               </ShadowCard>
 
@@ -539,5 +716,69 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.85,
+  },
+  choiceRow: {
+    gap: 16,
+    marginBottom: 24,
+  },
+  choiceCard: {
+    borderRadius: 16,
+    borderWidth: 1.5,
+    padding: 20,
+    alignItems: "center",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+      web: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.03,
+        shadowRadius: 4,
+      },
+    }),
+  },
+  choiceIconWrapper: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  choiceTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 6,
+  },
+  choiceDesc: {
+    textAlign: "center",
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  buttonRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  prevButton: {
+    flex: 1,
+    height: 52,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1.5,
+  },
+  nextButton: {
+    flex: 2,
+    height: 52,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
   },
 });

@@ -1,29 +1,103 @@
+// src/components/ChatInput.tsx
 import React, { useState } from 'react';
-import { View, StyleSheet, TextInput, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, StyleSheet, TextInput, Pressable, Platform, Keyboard } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import { ThemedText } from './themed-text';
 import { useTheme } from '@/hooks/use-theme';
-import { SymbolView } from 'expo-symbols';
+import { SymbolView } from './SymbolView';
 
 export function ChatInput({
   onSend,
   typingUserName,
+  chatType,
+  onSendFile,
+  onOpenVote,
+  onOpenEvent,
 }: {
   onSend: (text: string) => void;
   typingUserName: string | null;
+  chatType: 'direct' | 'group';
+  onSendFile: (uri: string, name: string, mimeType: string, type: 'image' | 'video' | 'file') => void;
+  onOpenVote: () => void;
+  onOpenEvent: () => void;
 }) {
   const [text, setText] = useState('');
+  const [showActions, setShowActions] = useState(false);
   const theme = useTheme();
 
   const handleSend = () => {
     if (text.trim() === '') return;
     onSend(text);
     setText('');
+    setShowActions(false);
+  };
+
+  const toggleActions = () => {
+    Keyboard.dismiss();
+    setShowActions(!showActions);
+  };
+
+  const handlePickPhoto = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 1,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        const uri = asset.uri;
+        const name = asset.fileName || `photo-${Date.now()}.jpg`;
+        const mimeType = asset.mimeType || 'image/jpeg';
+        onSendFile(uri, name, mimeType, 'image');
+        setShowActions(false);
+      }
+    } catch (e) {
+      console.warn('Image picker error', e);
+    }
+  };
+
+  const handlePickVideo = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        const uri = asset.uri;
+        const name = asset.fileName || `video-${Date.now()}.mp4`;
+        const mimeType = asset.mimeType || 'video/mp4';
+        onSendFile(uri, name, mimeType, 'video');
+        setShowActions(false);
+      }
+    } catch (e) {
+      console.warn('Video picker error', e);
+    }
+  };
+
+  const handlePickFile = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: '*/*',
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        const uri = asset.uri;
+        const name = asset.name || `file-${Date.now()}`;
+        const mimeType = asset.mimeType || 'application/octet-stream';
+        onSendFile(uri, name, mimeType, 'file');
+        setShowActions(false);
+      }
+    } catch (e) {
+      console.warn('Document picker error', e);
+    }
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+    <View
       style={[styles.container, { backgroundColor: theme.card, borderTopColor: theme.border }]}
     >
       {/* Typing indicator */}
@@ -41,10 +115,13 @@ export function ChatInput({
       )}
 
       <View style={styles.inputRow}>
-        <Pressable style={styles.iconButton}>
+        <Pressable 
+          style={[styles.iconButton, showActions && { backgroundColor: theme.primaryLight }]} 
+          onPress={toggleActions}
+        >
           <SymbolView
             name={{ ios: 'plus', android: 'add', web: 'plus' }}
-            tintColor={theme.textSecondary}
+            tintColor={showActions ? theme.primary : theme.textSecondary}
             size={22}
           />
         </Pressable>
@@ -62,6 +139,7 @@ export function ChatInput({
           placeholderTextColor={theme.textSecondary}
           value={text}
           onChangeText={setText}
+          onFocus={() => setShowActions(false)}
           multiline
         />
 
@@ -81,7 +159,83 @@ export function ChatInput({
           />
         </Pressable>
       </View>
-    </KeyboardAvoidingView>
+
+      {/* Collapsible Action Panel */}
+      {showActions && (
+        <View style={[styles.actionsContainer, { borderTopColor: theme.border }]}>
+          <Pressable style={styles.actionItem} onPress={handlePickPhoto}>
+            <View style={[styles.actionIconWrapper, { backgroundColor: theme.primaryLight }]}>
+              <SymbolView
+                name={{ ios: 'photo.fill', android: 'image', web: 'image' }}
+                tintColor={theme.primary}
+                size={22}
+              />
+            </View>
+            <ThemedText style={styles.actionLabel} type="small">사진</ThemedText>
+          </Pressable>
+
+          <Pressable style={styles.actionItem} onPress={handlePickVideo}>
+            <View style={[styles.actionIconWrapper, { backgroundColor: theme.primaryLight }]}>
+              <SymbolView
+                name={{ ios: 'video.fill', android: 'videocam', web: 'video' }}
+                tintColor={theme.primary}
+                size={22}
+              />
+            </View>
+            <ThemedText style={styles.actionLabel} type="small">동영상</ThemedText>
+          </Pressable>
+
+          <Pressable style={styles.actionItem} onPress={handlePickFile}>
+            <View style={[styles.actionIconWrapper, { backgroundColor: theme.primaryLight }]}>
+              <SymbolView
+                name={{ ios: 'doc.fill', android: 'description', web: 'file' }}
+                tintColor={theme.primary}
+                size={22}
+              />
+            </View>
+            <ThemedText style={styles.actionLabel} type="small">파일</ThemedText>
+          </Pressable>
+
+          {chatType === 'group' && (
+            <Pressable 
+              style={styles.actionItem} 
+              onPress={() => {
+                setShowActions(false);
+                onOpenVote();
+              }}
+            >
+              <View style={[styles.actionIconWrapper, { backgroundColor: theme.primaryLight }]}>
+                <SymbolView
+                  name={{ ios: 'checkmark.circle.fill', android: 'poll', web: 'check' }}
+                  tintColor={theme.primary}
+                  size={22}
+                />
+              </View>
+              <ThemedText style={styles.actionLabel} type="small">투표</ThemedText>
+            </Pressable>
+          )}
+
+          {chatType === 'group' && (
+            <Pressable 
+              style={styles.actionItem} 
+              onPress={() => {
+                setShowActions(false);
+                onOpenEvent();
+              }}
+            >
+              <View style={[styles.actionIconWrapper, { backgroundColor: theme.primaryLight }]}>
+                <SymbolView
+                  name={{ ios: 'calendar', android: 'calendar_today', web: 'calendar' }}
+                  tintColor={theme.primary}
+                  size={22}
+                />
+              </View>
+              <ThemedText style={styles.actionLabel} type="small">일정</ThemedText>
+            </Pressable>
+          )}
+        </View>
+      )}
+    </View>
   );
 }
 
@@ -146,5 +300,31 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.8,
+  },
+  actionsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    marginTop: 8,
+    gap: 16,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    justifyContent: 'flex-start',
+  },
+  actionItem: {
+    width: 60,
+    alignItems: 'center',
+    gap: 6,
+  },
+  actionIconWrapper: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  actionLabel: {
+    fontSize: 11,
+    textAlign: 'center',
   },
 });

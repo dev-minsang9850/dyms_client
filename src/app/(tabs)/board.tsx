@@ -1,14 +1,41 @@
-import React from 'react';
-import { View, StyleSheet, ScrollView, Platform } from 'react-native';
+import React, { useState } from 'react';
+import { View, StyleSheet, ScrollView, Platform, TouchableOpacity, Modal, TextInput, Alert, KeyboardAvoidingView } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { NoticeWidget } from '@/components/NoticeWidget';
 import { useApp } from '@/context/AppContext';
 import { useTheme } from '@/hooks/use-theme';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function BoardScreen() {
-  const { notices } = useApp();
+  const { notices, user, createNotice } = useApp();
   const theme = useTheme();
+
+  const [modalVisible, setModalVisible] = useState(false);
+  const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
+  const [tag, setTag] = useState('공지');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const isTeacherOrAdmin = user?.role === 'teacher' || user?.isAdmin;
+
+  const handleCreateNotice = async () => {
+    if (!title.trim() || !content.trim()) {
+      Alert.alert('알림', '제목과 내용을 모두 입력해주세요.');
+      return;
+    }
+    setIsSubmitting(true);
+    const success = await createNotice(title, content, tag);
+    setIsSubmitting(false);
+    if (success) {
+      setModalVisible(false);
+      setTitle('');
+      setContent('');
+      setTag('공지');
+    } else {
+      Alert.alert('오류', '공지사항 등록에 실패했습니다.');
+    }
+  };
 
   return (
     <ThemedView style={styles.container}>
@@ -35,6 +62,67 @@ export default function BoardScreen() {
           ))}
         </View>
       </ScrollView>
+
+      {/* FAB for Teachers/Admins */}
+      {isTeacherOrAdmin && (
+        <TouchableOpacity
+          style={[styles.fab, { backgroundColor: theme.tint }]}
+          onPress={() => setModalVisible(true)}
+        >
+          <Ionicons name="pencil" size={24} color="#fff" />
+        </TouchableOpacity>
+      )}
+
+      {/* Write Modal */}
+      <Modal visible={modalVisible} animationType="slide" presentationStyle="pageSheet">
+        <ThemedView style={styles.modalContainer}>
+          <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
+            <TouchableOpacity onPress={() => setModalVisible(false)}>
+              <ThemedText style={{ color: theme.tint, fontSize: 16 }}>취소</ThemedText>
+            </TouchableOpacity>
+            <ThemedText type="defaultSemiBold">공지사항 작성</ThemedText>
+            <TouchableOpacity onPress={handleCreateNotice} disabled={isSubmitting}>
+              <ThemedText style={{ color: theme.tint, fontSize: 16, opacity: isSubmitting ? 0.5 : 1, fontWeight: 'bold' }}>
+                등록
+              </ThemedText>
+            </TouchableOpacity>
+          </View>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+            <ScrollView contentContainerStyle={styles.modalContent}>
+              <View style={styles.tagSelector}>
+                {['공지', '긴급', '행사'].map((t) => (
+                  <TouchableOpacity
+                    key={t}
+                    style={[
+                      styles.tagButton,
+                      { backgroundColor: tag === t ? theme.tint : theme.card, borderColor: theme.border }
+                    ]}
+                    onPress={() => setTag(t)}
+                  >
+                    <ThemedText style={{ color: tag === t ? '#fff' : theme.text }}>{t}</ThemedText>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TextInput
+                style={[styles.inputTitle, { color: theme.text, borderColor: theme.border }]}
+                placeholder="제목을 입력하세요"
+                placeholderTextColor={theme.textSecondary}
+                value={title}
+                onChangeText={setTitle}
+              />
+              <TextInput
+                style={[styles.inputContent, { color: theme.text, borderColor: theme.border }]}
+                placeholder="내용을 입력하세요"
+                placeholderTextColor={theme.textSecondary}
+                value={content}
+                onChangeText={setContent}
+                multiline
+                textAlignVertical="top"
+              />
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </ThemedView>
+      </Modal>
     </ThemedView>
   );
 }
@@ -71,5 +159,57 @@ const styles = StyleSheet.create({
   list: {
     paddingHorizontal: 16,
     gap: 4,
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+  },
+  modalContainer: {
+    flex: 1,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+  },
+  modalContent: {
+    padding: 16,
+    gap: 16,
+  },
+  tagSelector: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  tagButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  inputTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    borderBottomWidth: 1,
+    paddingVertical: 12,
+  },
+  inputContent: {
+    fontSize: 16,
+    minHeight: 300,
+    paddingTop: 12,
+    lineHeight: 24,
   },
 });

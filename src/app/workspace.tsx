@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, Pressable, ScrollView, Platform, TextInput } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -6,14 +6,18 @@ import { DymsLogo } from '@/components/DymsLogo';
 import { ShadowCard } from '@/components/ShadowCard';
 import { useApp } from '@/context/AppContext';
 import { useTheme } from '@/hooks/use-theme';
-import { SymbolView } from 'expo-symbols';
+import { SymbolView } from '@/components/SymbolView';
 
 export default function WorkspaceScreen() {
-  const { workspaces, selectWorkspace, createWorkspace, user } = useApp();
+  const { workspaces, selectWorkspace, createWorkspace, user, logout, loadWorkspaces } = useApp();
   const theme = useTheme();
 
   const [newWsName, setNewWsName] = useState('');
   const [showCreateForm, setShowCreateForm] = useState(false);
+
+  useEffect(() => {
+    loadWorkspaces();
+  }, []);
 
   const handleCreate = () => {
     if (newWsName.trim() === '') return;
@@ -38,6 +42,14 @@ export default function WorkspaceScreen() {
           </ThemedText>
         </View>
 
+        {user && (
+          <View style={{ alignItems: 'center', marginBottom: 16 }}>
+            <ThemedText style={{ fontSize: 13 }} themeColor="textSecondary">
+              로그인 계정: <ThemedText type="smallBold">{user.name} ({user.email})</ThemedText>
+            </ThemedText>
+          </View>
+        )}
+
         <View style={styles.list}>
           {workspaces.map((ws) => (
             <Pressable
@@ -56,7 +68,7 @@ export default function WorkspaceScreen() {
                   </View>
                   <View style={styles.cardText}>
                     <ThemedText type="smallBold" themeColor="textSecondary">
-                      {ws.ownerEmail}
+                      개설자: {ws.ownerEmail}
                     </ThemedText>
                     <ThemedText style={styles.wsName}>
                       {ws.name}
@@ -121,6 +133,20 @@ export default function WorkspaceScreen() {
             </ThemedText>
           </Pressable>
         )}
+
+        <Pressable
+          style={({ pressed }) => [styles.logoutButton, pressed && styles.pressed]}
+          onPress={logout}
+        >
+          <SymbolView
+            name={{ ios: 'arrow.left.square', android: 'logout', web: 'log-out' }}
+            tintColor="#FF3B30"
+            size={18}
+          />
+          <ThemedText style={{ color: '#FF3B30', fontWeight: '600', fontSize: 14 }}>
+            다른 계정으로 로그인 (로그아웃)
+          </ThemedText>
+        </Pressable>
       </ScrollView>
     </ThemedView>
   );
@@ -214,5 +240,17 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.7,
+  },
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    marginTop: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 59, 48, 0.2)',
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 59, 48, 0.05)',
   },
 });

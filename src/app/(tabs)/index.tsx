@@ -4,10 +4,12 @@ import { View, TextInput, FlatList } from "react-native";
 import { useApp } from "@/context/AppContext";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
+import { useTheme } from "@/hooks/use-theme";
 
 export default function TabsHomeScreen() {
-  const { friends } = useApp();
+  const { friends, themeMode } = useApp();
   const [search, setSearch] = useState("");
+  const theme = useTheme();
 
   const safeFriends = friends || [];
 
@@ -27,12 +29,16 @@ export default function TabsHomeScreen() {
     <ThemedView style={{ flex: 1, padding: 16 }}>
       <TextInput
         placeholder="친구 검색"
+        placeholderTextColor={themeMode === 'dark' ? '#9A9EA7' : theme.textSecondary}
         value={search}
         onChangeText={setSearch}
         style={{
           height: 40,
           borderRadius: 8,
           borderWidth: 1,
+          borderColor: themeMode === 'dark' ? '#3A3A40' : theme.border,
+          backgroundColor: themeMode === 'dark' ? '#2A2A30' : theme.card,
+          color: themeMode === 'dark' ? '#FFFFFF' : theme.text,
           paddingHorizontal: 12,
           marginBottom: 12,
         }}

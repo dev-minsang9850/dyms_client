@@ -4,12 +4,22 @@ import { ThemedText } from './themed-text';
 import { ShadowCard } from './ShadowCard';
 import { useApp } from '@/context/AppContext';
 import { useTheme } from '@/hooks/use-theme';
-import { SymbolView } from 'expo-symbols';
+import { SymbolView } from './SymbolView';
 
 export function MealWidget() {
   const { meals } = useApp();
   const theme = useTheme();
   const [activeIndex, setActiveIndex] = useState(0);
+
+  if (!meals || meals.length === 0) {
+    return (
+      <ShadowCard style={styles.card}>
+        <View style={{ height: 120, justifyContent: 'center', alignItems: 'center' }}>
+          <ThemedText themeColor="textSecondary">급식 계획표를 불러오는 중입니다...</ThemedText>
+        </View>
+      </ShadowCard>
+    );
+  }
 
   const currentMeal = meals[activeIndex];
 

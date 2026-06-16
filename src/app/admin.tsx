@@ -9,178 +9,278 @@ import {
   Alert,
   Platform,
   SafeAreaView,
+  TextInput,
+  ScrollView,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { ShadowCard } from "@/components/ShadowCard";
 import { useTheme } from "@/hooks/use-theme";
-import { SymbolView } from "expo-symbols";
+import { SymbolView } from "@/components/SymbolView";
 import { api } from "@/lib/api";
+import { useApp } from "@/context/AppContext";
 
-interface PendingUser {
+interface UserProfile {
   id: string;
   name: string;
   email: string;
   phone: string;
   role: "student" | "teacher";
+  position: "none" | "head" | "deputy";
+  workspace?: string;
+  isApproved: boolean;
+  isAdmin: boolean;
 }
 
-const WORKSPACES = [
-  "DY@Software",
-  "DY@InfoSec",
-  "DY@AI",
-  "DY@WEB",
-  "DY@Design",
-];
+interface WorkspaceItem {
+  id: string;
+  name: string;
+  ownerEmail: string;
+  memberEmails?: string[];
+}
 
 export default function AdminScreen() {
   const theme = useTheme();
   const router = useRouter();
+  const { loadFriends, loadWorkspaces } = useApp();
 
-  const [pendingUsers, setPendingUsers] = useState<PendingUser[]>([]);
+  const [activeTab, setActiveTab] = useState<"pending" | "users" | "workspaces">("pending");
   const [loading, setLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
 
-  // Approval modal states
-  const [selectedUser, setSelectedUser] = useState<PendingUser | null>(null);
-  const [selectedWorkspace, setSelectedWorkspace] = useState<string>(
-    WORKSPACES[0],
-  );
+  // Data states
+  const [pendingUsers, setPendingUsers] = useState<UserProfile[]>([]);
+  const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
+  const [allWorkspaces, setAllWorkspaces] = useState<WorkspaceItem[]>([]);
+
+  // Modals & Action states
+  const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
+  const [selectedWorkspaces, setSelectedWorkspaces] = useState<string[]>([]);
+  const [showWorkspaceModal, setShowWorkspaceModal] = useState(false);
+  const [editUserWorkspaces, setEditUserWorkspaces] = useState<string[]>([]);
+  const [newWorkspaceName, setNewWorkspaceName] = useState("");
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [showPositionModal, setShowPositionModal] = useState(false);
+  const [showCreateWorkspaceModal, setShowCreateWorkspaceModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const fetchPendingUsers = async (showLoadingIndicator = true) => {
-    if (showLoadingIndicator) setLoading(true);
-    try {
-      const res = await api.get("/users/pending");
-      setPendingUsers(res.data as PendingUser[]);
-    } catch (err: any) {
-      console.error("fetchPendingUsers error", err);
+  useEffect(() => {
+    const initWorkspaces = async () => {
+      try {
+        const res = await api.get("/workspaces/all");
+        const wsList = res.data as WorkspaceItem[];
+        setAllWorkspaces(wsList);
+        if (wsList.length > 0) {
+          setSelectedWorkspaces([wsList[0].name]);
+        }
+      } catch (err) {
+        console.error("initWorkspaces error", err);
+      }
+    };
+    initWorkspaces();
+  }, []);
+
+  const showAlert = (title: string, message: string) => {
+    if (Platform.OS === 'web') {
+      alert(`${title}\n\n${message}`);
+    } else {
+      Alert.alert(title, message);
+    }
+  };
+
+  const showConfirm = (title: string, message: string, onConfirm: () => void) => {
+    if (Platform.OS === 'web') {
+      if (confirm(`${title}\n\n${message}`)) {
+        onConfirm();
+      }
+    } else {
       Alert.alert(
-        "오류",
-        err.response?.data?.message || "대기 사용자 목록을 불러오지 못했습니다.",
+        title,
+        message,
+        [
+          { text: "취소", style: "cancel" },
+          { text: "확인", style: "destructive", onPress: onConfirm }
+        ]
       );
+    }
+  };
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      if (activeTab === "pending") {
+        const res = await api.get("/users/pending");
+        setPendingUsers(res.data as UserProfile[]);
+        const wsRes = await api.get("/workspaces/all");
+        setAllWorkspaces(wsRes.data as WorkspaceItem[]);
+      } else if (activeTab === "users") {
+        const res = await api.get("/users");
+        setAllUsers(res.data as UserProfile[]);
+        const wsRes = await api.get("/workspaces/all");
+        setAllWorkspaces(wsRes.data as WorkspaceItem[]);
+      } else if (activeTab === "workspaces") {
+        const res = await api.get("/workspaces/all");
+        setAllWorkspaces(res.data as WorkspaceItem[]);
+      }
+    } catch (err: any) {
+      console.error("fetchData error", err);
+      if (err.response?.status !== 401) {
+        showAlert("오류", err.response?.data?.message || "데이터 로드에 실패했습니다.");
+      }
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   };
 
   useEffect(() => {
-    fetchPendingUsers();
-  }, []);
+    fetchData();
+  }, [activeTab]);
 
-  const handleRefresh = () => {
-    setRefreshing(true);
-    fetchPendingUsers(false);
+  const getUserWorkspaces = (userEmail: string) => {
+    return allWorkspaces
+      .filter((ws) => ws.ownerEmail === userEmail || (ws.memberEmails && ws.memberEmails.includes(userEmail)))
+      .map((ws) => ws.name);
   };
 
-  const openApprovalModal = (user: PendingUser) => {
-    setSelectedUser(user);
-    setSelectedWorkspace(WORKSPACES[0]); // default
-  };
-
-  const closeApprovalModal = () => {
-    setSelectedUser(null);
-  };
-
+  // Approval flow
   const handleApprove = async () => {
     if (!selectedUser) return;
+    if (selectedWorkspaces.length === 0) {
+      showAlert("경고", "최소 한 개 이상의 워크스페이스를 선택해 주세요.");
+      return;
+    }
     setSubmitting(true);
     try {
       await api.patch(`/users/${selectedUser.id}/approve`, {
-        workspace: selectedWorkspace,
+        workspaces: selectedWorkspaces,
       });
-      Alert.alert("성공", `${selectedUser.name} 사용자가 승인되었습니다.`);
-      closeApprovalModal();
-      fetchPendingUsers(false);
+      showAlert("성공", `${selectedUser.name} 사용자가 승인되었습니다.`);
+      setShowAssignModal(false);
+      setSelectedUser(null);
+      fetchData();
+      await loadFriends();
+      await loadWorkspaces();
     } catch (err: any) {
-      console.error("approve error", err);
-      Alert.alert(
-        "오류",
-        err.response?.data?.message || "가입 승인 처리에 실패했습니다.",
-      );
+      showAlert("오류", err.response?.data?.message || "승인 처리 실패");
     } finally {
       setSubmitting(false);
     }
   };
 
-  const renderUserItem = ({ item }: { item: PendingUser }) => (
-    <ShadowCard style={styles.userCard} padding={16}>
-      <View style={styles.cardHeader}>
-        <View
-          style={[styles.avatar, { backgroundColor: theme.primaryLight }]}
-        >
-          <ThemedText
-            style={{ color: theme.primary, fontSize: 16, fontWeight: "700" }}
-          >
-            {item.name.slice(-2)}
-          </ThemedText>
-        </View>
-        <View style={styles.userInfo}>
-          <View style={styles.nameRow}>
-            <ThemedText style={styles.userName} type="subtitle">
-              {item.name}
-            </ThemedText>
-            <View
-              style={[
-                styles.badge,
-                {
-                  backgroundColor:
-                    item.role === "teacher"
-                      ? theme.primaryLight
-                      : theme.backgroundSelected,
-                },
-              ]}
-            >
-              <ThemedText
-                style={[
-                  styles.badgeText,
-                  {
-                    color:
-                      item.role === "teacher"
-                        ? theme.primary
-                        : theme.textSecondary,
-                  },
-                ]}
-                type="smallBold"
-              >
-                {item.role === "teacher" ? "교직원" : "학생"}
-              </ThemedText>
-            </View>
-          </View>
-          <ThemedText style={styles.userEmail} themeColor="textSecondary">
-            {item.email}
-          </ThemedText>
-          <ThemedText style={styles.userPhone} themeColor="textSecondary">
-            {item.phone}
-          </ThemedText>
-        </View>
-      </View>
+  // Workspaces Edit flow
+  const handleSaveWorkspaces = async () => {
+    if (!selectedUser) return;
+    if (editUserWorkspaces.length === 0) {
+      showAlert("경고", "최소 한 개 이상의 워크스페이스를 선택해 주세요.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await api.patch(`/users/${selectedUser.id}/workspaces`, {
+        workspaces: editUserWorkspaces,
+      });
+      showAlert("성공", `${selectedUser.name}님의 소속 워크스페이스가 변경되었습니다.`);
+      setShowWorkspaceModal(false);
+      setSelectedUser(null);
+      fetchData();
+      await loadFriends();
+      await loadWorkspaces();
+    } catch (err: any) {
+      showAlert("오류", err.response?.data?.message || "워크스페이스 수정 실패");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
-      <Pressable
-        style={({ pressed }) => [
-          styles.approveButton,
-          { backgroundColor: theme.primary },
-          pressed && styles.pressed,
-        ]}
-        onPress={() => openApprovalModal(item)}
-      >
-        <SymbolView
-          name={{
-            ios: "checkmark.seal.fill",
-            android: "check_circle",
-            web: "check",
-          }}
-          tintColor="#FFFFFF"
-          size={16}
-        />
-        <ThemedText style={styles.approveButtonText} type="smallBold">
-          승인 및 부서 배정
-        </ThemedText>
-      </Pressable>
-    </ShadowCard>
-  );
+  // Role/Position flow
+  const handleUpdatePosition = async (position: "none" | "head" | "deputy") => {
+    if (!selectedUser) return;
+    setSubmitting(true);
+    try {
+      await api.patch(`/users/${selectedUser.id}/position`, { position });
+      showAlert("성공", `${selectedUser.name}님의 직책이 변경되었습니다.`);
+      setShowPositionModal(false);
+      setSelectedUser(null);
+      fetchData();
+      await loadFriends();
+    } catch (err: any) {
+      showAlert("오류", err.response?.data?.message || "직책 수정 실패");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Password reset flow
+  const handleResetPassword = async (user: UserProfile) => {
+    showConfirm(
+      "비밀번호 초기화",
+      `${user.name}님의 비밀번호를 초기화하시겠습니까?`,
+      async () => {
+        try {
+          const res = await api.patch(`/users/${user.id}/password`);
+          if (res.data.tempPassword) {
+            showAlert("성공", `임시 비밀번호가 생성되었습니다:\n\n${res.data.tempPassword}`);
+          }
+        } catch (err: any) {
+          showAlert("오류", err.response?.data?.message || "비밀번호 초기화 실패");
+        }
+      }
+    );
+  };
+
+  // User deletion flow
+  const handleDeleteUser = async (user: UserProfile) => {
+    showConfirm(
+      "회원 삭제",
+      `정말로 ${user.name}(${user.email}) 회원을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`,
+      async () => {
+        try {
+          await api.delete(`/users/${user.id}`);
+          showAlert("성공", `${user.name} 회원이 삭제되었습니다.`);
+          fetchData();
+          await loadFriends();
+        } catch (err: any) {
+          showAlert("오류", err.response?.data?.message || "회원 삭제 실패");
+        }
+      }
+    );
+  };
+
+  // Workspace CRUD flows
+  const handleCreateWorkspace = async () => {
+    if (!newWorkspaceName.trim()) return;
+    setSubmitting(true);
+    try {
+      await api.post("/workspaces", { name: newWorkspaceName.trim() });
+      showAlert("성공", "새 워크스페이스가 생성되었습니다.");
+      setShowCreateWorkspaceModal(false);
+      setNewWorkspaceName("");
+      fetchData();
+      await loadWorkspaces();
+    } catch (err: any) {
+      showAlert("오류", err.response?.data?.message || "워크스페이스 생성 실패");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeleteWorkspace = async (wsId: string, wsName: string) => {
+    showConfirm(
+      "워크스페이스 삭제",
+      `정말로 '${wsName}' 워크스페이스를 삭제하시겠습니까?`,
+      async () => {
+        try {
+          await api.delete(`/workspaces/${wsId}`);
+          showAlert("성공", "워크스페이스가 삭제되었습니다.");
+          fetchData();
+          await loadWorkspaces();
+          await loadFriends();
+        } catch (err: any) {
+          showAlert("오류", err.response?.data?.message || "삭제 실패");
+        }
+      }
+    );
+  };
 
   return (
     <ThemedView style={styles.container}>
@@ -189,141 +289,358 @@ export default function AdminScreen() {
         <View style={[styles.header, { borderBottomColor: theme.border }]}>
           <Pressable
             style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
-            onPress={() => router.back()}
+            onPress={() => router.replace('/menu' as any)}
           >
             <SymbolView
-              name={{ ios: "chevron.left", android: "arrow_back", web: "arrow-left" }}
+              name="chevron.left"
               tintColor={theme.text}
               size={24}
             />
           </Pressable>
           <ThemedText style={styles.headerTitle} type="subtitle">
-            가입 및 단체 승인 관리
+            어드민 대시보드
           </ThemedText>
-          <View style={styles.headerRightPlaceholder} />
+          <View style={{ width: 40 }} />
+        </View>
+
+        {/* Tab Controls */}
+        <View style={[styles.tabContainer, { borderBottomColor: theme.border }]}>
+          <Pressable
+            style={[styles.tabButton, activeTab === "pending" && [styles.activeTab, { borderBottomColor: theme.primary }]]}
+            onPress={() => setActiveTab("pending")}
+          >
+            <ThemedText style={[styles.tabText, activeTab === "pending" && { color: theme.primary, fontWeight: "700" }]}>
+              가입 승인 대기
+            </ThemedText>
+          </Pressable>
+          <Pressable
+            style={[styles.tabButton, activeTab === "users" && [styles.activeTab, { borderBottomColor: theme.primary }]]}
+            onPress={() => setActiveTab("users")}
+          >
+            <ThemedText style={[styles.tabText, activeTab === "users" && { color: theme.primary, fontWeight: "700" }]}>
+              유저 관리
+            </ThemedText>
+          </Pressable>
+          <Pressable
+            style={[styles.tabButton, activeTab === "workspaces" && [styles.activeTab, { borderBottomColor: theme.primary }]]}
+            onPress={() => setActiveTab("workspaces")}
+          >
+            <ThemedText style={[styles.tabText, activeTab === "workspaces" && { color: theme.primary, fontWeight: "700" }]}>
+              워크스페이스 관리
+            </ThemedText>
+          </Pressable>
         </View>
 
         {loading ? (
-          <View style={styles.loadingContainer}>
+          <View style={styles.centerContainer}>
             <ActivityIndicator size="large" color={theme.primary} />
           </View>
         ) : (
-          <FlatList
-            data={pendingUsers}
-            renderItem={renderUserItem}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.listContent}
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            ListEmptyComponent={
-              <View style={styles.emptyContainer}>
-                <SymbolView
-                  name={{
-                    ios: "person.crop.circle.badge.exclamationmark",
-                    android: "person_search",
-                    web: "user-check",
-                  }}
-                  tintColor={theme.textSecondary}
-                  size={48}
-                />
-                <ThemedText style={styles.emptyText} themeColor="textSecondary">
-                  승인 대기 중인 유저가 없습니다.
-                </ThemedText>
+          <ScrollView contentContainerStyle={styles.scrollContent}>
+            {activeTab === "pending" && (
+              <View style={styles.section}>
+                {pendingUsers.length === 0 ? (
+                  <View style={styles.emptyContainer}>
+                    <ThemedText themeColor="textSecondary">대기 중인 회원이 없습니다.</ThemedText>
+                  </View>
+                ) : (
+                  pendingUsers.map((item) => (
+                    <ShadowCard key={item.id} style={styles.itemCard} padding={16}>
+                      <View style={styles.itemRow}>
+                        <View style={styles.itemInfo}>
+                          <ThemedText type="smallBold">{item.name}</ThemedText>
+                          <ThemedText themeColor="textSecondary" style={{ fontSize: 12 }}>
+                            {item.email} | {item.phone}
+                          </ThemedText>
+                          <ThemedText themeColor="textSecondary" style={{ fontSize: 11 }}>
+                            가입 역할: {item.role === "teacher" ? "교직원" : "학생"}
+                          </ThemedText>
+                        </View>
+                        <Pressable
+                          style={[styles.actionBtn, { backgroundColor: theme.primary }]}
+                          onPress={() => {
+                            setSelectedUser(item);
+                            if (allWorkspaces.length > 0) {
+                              setSelectedWorkspaces([allWorkspaces[0].name]);
+                            }
+                            setShowAssignModal(true);
+                          }}
+                        >
+                          <ThemedText style={styles.actionBtnText}>승인</ThemedText>
+                        </Pressable>
+                      </View>
+                    </ShadowCard>
+                  ))
+                )}
               </View>
-            }
-          />
+            )}
+
+            {activeTab === "users" && (
+              <View style={styles.section}>
+                {allUsers.length === 0 ? (
+                  <View style={styles.emptyContainer}>
+                    <ThemedText themeColor="textSecondary">가입된 유저가 없습니다.</ThemedText>
+                  </View>
+                ) : (
+                  allUsers.map((item) => (
+                    <ShadowCard key={item.id} style={styles.itemCard} padding={16}>
+                      <View style={styles.itemRow}>
+                        <View style={styles.itemInfo}>
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                            <ThemedText type="smallBold">{item.name}</ThemedText>
+                            <View style={[styles.badge, { backgroundColor: item.isApproved ? theme.primaryLight : theme.border }]}>
+                              <ThemedText style={{ fontSize: 10, color: item.isApproved ? theme.primary : theme.textSecondary }}>
+                                {item.isApproved ? "정회원" : "대기회원"}
+                              </ThemedText>
+                            </View>
+                          </View>
+                          <ThemedText themeColor="textSecondary" style={{ fontSize: 12 }}>
+                            {item.email} | {item.phone}
+                          </ThemedText>
+                          <ThemedText themeColor="textSecondary" style={{ fontSize: 11 }}>
+                            소속: {getUserWorkspaces(item.email).join(', ') || "없음"} | 역할: {item.role === "teacher" ? "교직원" : "학생"}
+                          </ThemedText>
+                          <ThemedText themeColor="textSecondary" style={{ fontSize: 11 }}>
+                            직책: {item.position === "head" ? "부장" : item.position === "deputy" ? "차장" : "없음"}
+                          </ThemedText>
+                        </View>
+                        <View style={styles.btnColumn}>
+                          <Pressable
+                            style={[styles.smallBtn, { backgroundColor: theme.border }]}
+                            onPress={() => {
+                              setSelectedUser(item);
+                              setEditUserWorkspaces(getUserWorkspaces(item.email));
+                              setShowWorkspaceModal(true);
+                            }}
+                          >
+                            <ThemedText style={{ fontSize: 11, fontWeight: "600" }}>소속 관리</ThemedText>
+                          </Pressable>
+                          <Pressable
+                            style={[styles.smallBtn, { backgroundColor: theme.border }]}
+                            onPress={() => {
+                              setSelectedUser(item);
+                              setShowPositionModal(true);
+                            }}
+                          >
+                            <ThemedText style={{ fontSize: 11, fontWeight: "600" }}>직책 변경</ThemedText>
+                          </Pressable>
+                          <Pressable
+                            style={[styles.smallBtn, { backgroundColor: "rgba(255,59,48,0.1)", borderColor: "rgba(255,59,48,0.2)", borderWidth: 0.5 }]}
+                            onPress={() => handleResetPassword(item)}
+                          >
+                            <ThemedText style={{ fontSize: 11, color: "#FF3B30", fontWeight: "600" }}>비밀번호 초기화</ThemedText>
+                          </Pressable>
+                          <Pressable
+                            style={[styles.smallBtn, { backgroundColor: "rgba(255,59,48,0.1)", borderColor: "rgba(255,59,48,0.2)", borderWidth: 0.5 }]}
+                            onPress={() => handleDeleteUser(item)}
+                          >
+                            <ThemedText style={{ fontSize: 11, color: "#FF3B30", fontWeight: "600" }}>회원 삭제</ThemedText>
+                          </Pressable>
+                        </View>
+                      </View>
+                    </ShadowCard>
+                  ))
+                )}
+              </View>
+            )}
+
+            {activeTab === "workspaces" && (
+              <View style={styles.section}>
+                <Pressable
+                  style={[styles.createWsBtn, { backgroundColor: theme.primary }]}
+                  onPress={() => setShowCreateWorkspaceModal(true)}
+                >
+                  <SymbolView name={{ ios: "plus.fill", android: "add", web: "plus" }} tintColor="#FFFFFF" size={16} />
+                  <ThemedText style={{ color: "#FFFFFF", fontWeight: "700" }}>새 워크스페이스 만들기</ThemedText>
+                </Pressable>
+
+                {allWorkspaces.length === 0 ? (
+                  <View style={styles.emptyContainer}>
+                    <ThemedText themeColor="textSecondary">개설된 워크스페이스가 없습니다.</ThemedText>
+                  </View>
+                ) : (
+                  allWorkspaces.map((item) => (
+                    <ShadowCard key={item.id} style={styles.itemCard} padding={16}>
+                      <View style={styles.itemRow}>
+                        <View style={styles.itemInfo}>
+                          <ThemedText type="smallBold">{item.name}</ThemedText>
+                          <ThemedText themeColor="textSecondary" style={{ fontSize: 12 }}>
+                            개설자: {item.ownerEmail}
+                          </ThemedText>
+                          <ThemedText themeColor="textSecondary" style={{ fontSize: 11 }}>
+                            멤버 수: {item.memberEmails?.length || 0}명
+                          </ThemedText>
+                        </View>
+                        <Pressable
+                          style={[styles.actionBtn, { backgroundColor: "rgba(255,59,48,0.1)" }]}
+                          onPress={() => handleDeleteWorkspace(item.id, item.name)}
+                        >
+                          <ThemedText style={{ color: "#FF3B30", fontWeight: "700", fontSize: 12 }}>삭제</ThemedText>
+                        </Pressable>
+                      </View>
+                    </ShadowCard>
+                  ))
+                )}
+              </View>
+            )}
+          </ScrollView>
         )}
 
-        {/* Approval and Workspace Assignment Modal */}
-        <Modal
-          visible={selectedUser !== null}
-          transparent
-          animationType="fade"
-          onRequestClose={closeApprovalModal}
-        >
+        {/* Modal: Workspace Assign on Approval */}
+        <Modal visible={showAssignModal} transparent animationType="fade" onRequestClose={() => setShowAssignModal(false)}>
           <View style={styles.modalOverlay}>
             <ThemedView style={styles.modalContent}>
-              <ThemedText style={styles.modalTitle} type="subtitle">
-                가입 승인 & 단체 지정
+              <ThemedText type="subtitle">가입 승인 & 워크스페이스 배정</ThemedText>
+              <ThemedText themeColor="textSecondary" style={{ fontSize: 13, marginBottom: 8 }}>
+                {selectedUser?.name}님을 승인하고 배정할 워크스페이스들을 골라주세요 (다중 선택 가능).
               </ThemedText>
-              {selectedUser && (
-                <ThemedText style={styles.modalSubtitle} themeColor="textSecondary">
-                  {selectedUser.name} ({selectedUser.email})님을 승인하고 어떤 단체에 배정할지 선택해 주세요.
-                </ThemedText>
-              )}
 
-              {/* Workspace Selection List */}
-              <View style={styles.workspaceList}>
-                {WORKSPACES.map((ws) => {
-                  const isSelected = selectedWorkspace === ws;
+              <View style={styles.workspaceSelectGrid}>
+                {allWorkspaces.length === 0 ? (
+                  <ThemedText themeColor="textSecondary" style={{ fontSize: 13, textAlign: "center", marginVertical: 12 }}>
+                    개설된 워크스페이스가 없습니다.
+                  </ThemedText>
+                ) : (
+                  allWorkspaces.map((ws) => {
+                    const isSel = selectedWorkspaces.includes(ws.name);
+                    return (
+                      <Pressable
+                        key={ws.id}
+                        style={[styles.wsSelectCard, { borderColor: isSel ? theme.primary : theme.border, backgroundColor: isSel ? theme.primaryLight : theme.background }]}
+                        onPress={() => {
+                          if (isSel) {
+                            if (selectedWorkspaces.length > 1) {
+                              setSelectedWorkspaces(selectedWorkspaces.filter(w => w !== ws.name));
+                            } else {
+                              showAlert("경고", "최소 하나의 워크스페이스를 선택해야 합니다.");
+                            }
+                          } else {
+                            setSelectedWorkspaces([...selectedWorkspaces, ws.name]);
+                          }
+                        }}
+                      >
+                        <ThemedText style={[isSel && { color: theme.primary, fontWeight: "700" }]}>{ws.name}</ThemedText>
+                      </Pressable>
+                    );
+                  })
+                )}
+              </View>
+
+              <View style={styles.modalActions}>
+                <Pressable style={[styles.modalBtn, { backgroundColor: theme.border }]} onPress={() => setShowAssignModal(false)}>
+                  <ThemedText>취소</ThemedText>
+                </Pressable>
+                <Pressable style={[styles.modalBtn, { backgroundColor: theme.primary }]} onPress={handleApprove} disabled={submitting}>
+                  <ThemedText style={{ color: "#FFFFFF", fontWeight: "700" }}>승인 완료</ThemedText>
+                </Pressable>
+              </View>
+            </ThemedView>
+          </View>
+        </Modal>
+
+        {/* Modal: Manage Workspaces for Existing User */}
+        <Modal visible={showWorkspaceModal} transparent animationType="fade" onRequestClose={() => setShowWorkspaceModal(false)}>
+          <View style={styles.modalOverlay}>
+            <ThemedView style={styles.modalContent}>
+              <ThemedText type="subtitle">소속 워크스페이스 관리</ThemedText>
+              <ThemedText themeColor="textSecondary" style={{ fontSize: 13, marginBottom: 8 }}>
+                {selectedUser?.name}님의 소속 워크스페이스를 설정해 주세요 (다중 선택 가능).
+              </ThemedText>
+
+              <View style={styles.workspaceSelectGrid}>
+                {allWorkspaces.length === 0 ? (
+                  <ThemedText themeColor="textSecondary" style={{ fontSize: 13, textAlign: "center", marginVertical: 12 }}>
+                    개설된 워크스페이스가 없습니다.
+                  </ThemedText>
+                ) : (
+                  allWorkspaces.map((ws) => {
+                    const isSel = editUserWorkspaces.includes(ws.name);
+                    return (
+                      <Pressable
+                        key={ws.id}
+                        style={[styles.wsSelectCard, { borderColor: isSel ? theme.primary : theme.border, backgroundColor: isSel ? theme.primaryLight : theme.background }]}
+                        onPress={() => {
+                          if (isSel) {
+                            if (editUserWorkspaces.length > 1) {
+                              setEditUserWorkspaces(editUserWorkspaces.filter(w => w !== ws.name));
+                            } else {
+                              showAlert("경고", "최소 하나의 워크스페이스를 선택해야 합니다.");
+                            }
+                          } else {
+                            setEditUserWorkspaces([...editUserWorkspaces, ws.name]);
+                          }
+                        }}
+                      >
+                        <ThemedText style={[isSel && { color: theme.primary, fontWeight: "700" }]}>{ws.name}</ThemedText>
+                      </Pressable>
+                    );
+                  })
+                )}
+              </View>
+
+              <View style={styles.modalActions}>
+                <Pressable style={[styles.modalBtn, { backgroundColor: theme.border }]} onPress={() => setShowWorkspaceModal(false)}>
+                  <ThemedText>취소</ThemedText>
+                </Pressable>
+                <Pressable style={[styles.modalBtn, { backgroundColor: theme.primary }]} onPress={handleSaveWorkspaces} disabled={submitting}>
+                  <ThemedText style={{ color: "#FFFFFF", fontWeight: "700" }}>저장</ThemedText>
+                </Pressable>
+              </View>
+            </ThemedView>
+          </View>
+        </Modal>
+
+        {/* Modal: Position Delegation */}
+        <Modal visible={showPositionModal} transparent animationType="fade" onRequestClose={() => setShowPositionModal(false)}>
+          <View style={styles.modalOverlay}>
+            <ThemedView style={styles.modalContent}>
+              <ThemedText type="subtitle">부서 내 직책 설정</ThemedText>
+              <ThemedText themeColor="textSecondary" style={{ fontSize: 13 }}>
+                {selectedUser?.name}님의 직책을 임명해 주세요.
+              </ThemedText>
+
+              <View style={styles.positionGrid}>
+                {(["none", "head", "deputy"] as const).map((pos) => {
+                  const label = pos === "head" ? "부장" : pos === "deputy" ? "차장" : "직책 없음";
                   return (
                     <Pressable
-                      key={ws}
-                      style={[
-                        styles.workspaceItem,
-                        {
-                          borderColor: isSelected ? theme.primary : theme.border,
-                          backgroundColor: isSelected
-                            ? theme.primaryLight
-                            : theme.background,
-                        },
-                      ]}
-                      onPress={() => setSelectedWorkspace(ws)}
+                      key={pos}
+                      style={[styles.positionCard, { backgroundColor: theme.border }]}
+                      onPress={() => handleUpdatePosition(pos)}
                     >
-                      <ThemedText
-                        style={[
-                          styles.workspaceText,
-                          isSelected && { color: theme.primary, fontWeight: "700" },
-                        ]}
-                      >
-                        {ws}
-                      </ThemedText>
-                      {isSelected && (
-                        <SymbolView
-                          name={{
-                            ios: "checkmark.circle.fill",
-                            android: "check_circle",
-                            web: "check",
-                          }}
-                          tintColor={theme.primary}
-                          size={18}
-                        />
-                      )}
+                      <ThemedText style={{ fontWeight: "700" }}>{label}</ThemedText>
                     </Pressable>
                   );
                 })}
               </View>
 
-              {/* Modal Actions */}
-              <View style={styles.modalActions}>
-                <Pressable
-                  style={[
-                    styles.modalButton,
-                    styles.cancelButton,
-                    { borderColor: theme.border },
-                  ]}
-                  onPress={closeApprovalModal}
-                  disabled={submitting}
-                >
-                  <ThemedText themeColor="textSecondary">취소</ThemedText>
-                </Pressable>
+              <Pressable style={[styles.modalBtn, { backgroundColor: theme.border, marginTop: 12 }]} onPress={() => setShowPositionModal(false)}>
+                <ThemedText>취소</ThemedText>
+              </Pressable>
+            </ThemedView>
+          </View>
+        </Modal>
 
-                <Pressable
-                  style={[
-                    styles.modalButton,
-                    styles.confirmButton,
-                    { backgroundColor: theme.primary },
-                  ]}
-                  onPress={handleApprove}
-                  disabled={submitting}
-                >
-                  {submitting ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <ThemedText style={styles.confirmButtonText}>
-                      승인 완료
-                    </ThemedText>
-                  )}
+        {/* Modal: Create Workspace */}
+        <Modal visible={showCreateWorkspaceModal} transparent animationType="fade" onRequestClose={() => setShowCreateWorkspaceModal(false)}>
+          <View style={styles.modalOverlay}>
+            <ThemedView style={styles.modalContent}>
+              <ThemedText type="subtitle">새 워크스페이스 개설</ThemedText>
+              <TextInput
+                style={[styles.input, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border }]}
+                placeholder="워크스페이스 이름 입력 (예: DY@club)"
+                placeholderTextColor={theme.textSecondary}
+                value={newWorkspaceName}
+                onChangeText={setNewWorkspaceName}
+                autoFocus
+              />
+
+              <View style={styles.modalActions}>
+                <Pressable style={[styles.modalBtn, { backgroundColor: theme.border }]} onPress={() => setShowCreateWorkspaceModal(false)}>
+                  <ThemedText>취소</ThemedText>
+                </Pressable>
+                <Pressable style={[styles.modalBtn, { backgroundColor: theme.primary }]} onPress={handleCreateWorkspace} disabled={submitting}>
+                  <ThemedText style={{ color: "#FFFFFF", fontWeight: "700" }}>개설하기</ThemedText>
                 </Pressable>
               </View>
             </ThemedView>
@@ -358,89 +675,92 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
   },
-  headerRightPlaceholder: {
-    width: 40,
+  tabContainer: {
+    flexDirection: "row",
+    borderBottomWidth: 1,
   },
-  loadingContainer: {
+  tabButton: {
+    flex: 1,
+    paddingVertical: 14,
+    alignItems: "center",
+    borderBottomWidth: 2,
+    borderBottomColor: "transparent",
+  },
+  activeTab: {
+    borderBottomWidth: 2,
+  },
+  tabText: {
+    fontSize: 13,
+  },
+  scrollContent: {
+    padding: 16,
+    paddingBottom: 40,
+  },
+  centerContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    paddingTop: 100,
   },
-  listContent: {
-    padding: 16,
-    gap: 16,
-    paddingBottom: Platform.OS === "ios" ? 40 : 20,
+  section: {
+    gap: 12,
   },
-  userCard: {
+  itemCard: {
     borderColor: "transparent",
-    gap: 16,
   },
-  cardHeader: {
+  itemRow: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
     gap: 12,
   },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 18,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  userInfo: {
+  itemInfo: {
     flex: 1,
     gap: 2,
   },
-  nameRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  userName: {
-    fontSize: 16,
-    fontWeight: "700",
-  },
   badge: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 6,
+    borderRadius: 4,
   },
-  badgeText: {
-    fontSize: 10,
-  },
-  userEmail: {
-    fontSize: 12,
-  },
-  userPhone: {
-    fontSize: 12,
-  },
-  approveButton: {
-    flexDirection: "row",
-    alignItems: "center",
+  actionBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
     justifyContent: "center",
-    gap: 6,
-    height: 42,
-    borderRadius: 12,
+    alignItems: "center",
   },
-  approveButtonText: {
+  actionBtnText: {
     color: "#FFFFFF",
-    fontSize: 14,
+    fontWeight: "700",
+    fontSize: 13,
   },
-  pressed: {
-    opacity: 0.75,
+  btnColumn: {
+    gap: 6,
+  },
+  smallBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    alignItems: "center",
   },
   emptyContainer: {
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 80,
-    gap: 12,
   },
-  emptyText: {
-    fontSize: 15,
+  createWsBtn: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
+    height: 48,
+    borderRadius: 12,
+    marginBottom: 8,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    backgroundColor: "rgba(0,0,0,0.4)",
     justifyContent: "center",
     padding: 24,
   },
@@ -448,62 +768,42 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 24,
     gap: 16,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.2,
-        shadowRadius: 20,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
   },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-  },
-  modalSubtitle: {
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  workspaceList: {
+  workspaceSelectGrid: {
     gap: 8,
-    marginVertical: 8,
   },
-  workspaceItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+  wsSelectCard: {
     padding: 12,
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 1,
   },
-  workspaceText: {
-    fontSize: 14,
-    fontWeight: "500",
+  positionGrid: {
+    gap: 8,
+    marginTop: 10,
+  },
+  positionCard: {
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: "center",
   },
   modalActions: {
     flexDirection: "row",
     gap: 12,
-    marginTop: 8,
   },
-  modalButton: {
+  modalBtn: {
     flex: 1,
-    height: 48,
-    borderRadius: 12,
+    height: 46,
+    borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
   },
-  cancelButton: {
+  input: {
+    height: 48,
     borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 16,
   },
-  confirmButton: {
-    justifyContent: "center",
-  },
-  confirmButtonText: {
-    color: "#FFFFFF",
-    fontWeight: "700",
+  pressed: {
+    opacity: 0.75,
   },
 });
